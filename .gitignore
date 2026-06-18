@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+*.egg-info/
+dist/
+build/
+
+# uv
+.python-version
+
+# dbt
+transform/target/
+transform/dbt_packages/
+transform/logs/
+transform/.user.yml
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!infra/envs/dev/terraform.tfvars.example
+!infra/envs/prod/terraform.tfvars.example
+.terraform.lock.hcl
+
+# Secrets — never commit
+*.json
+!infra/**/*.json
+service-account*.json
+*-key.json
+*credentials*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Docker
+.dockerignore
