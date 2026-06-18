@@ -1,0 +1,124 @@
+"""Load CSV rows into BigQuery raw as all STRING plus ingestion metadata."""
+
+import csv
+import io
+import uuid
+from datetime import UTC, datetime
+
+from google.cloud import bigquery
+
+from tring_ingest.common.config import GCP_PROJECT
+from tring_ingest.common.logging import get_logger
+
+logger = get_logger(__name__)
+
+METADATA_COLUMNS = [
+    "_ingested_at",
+    "_source",
+    "_app_id",
+    "_platform",
+    "_run_id",
+    "_extract_from",
+    "_extract_to",
+    "_schema_flag",
+]
+
+
+def _build_schema(source_columns: list[str]) -> list[bigquery.SchemaField]:
+    """All source columns as STRING plus metadata columns."""
+    fields = [bigquery.SchemaField(col, "STRING") for col in source_columns]
+    fields += [
+        bigquery.SchemaField("_ingested_at", "TIMESTAMP"),
+        bigquery.SchemaField("_source", "STRING"),
+        bigquery.SchemaField("_app_id", "STRING"),
+        bigquery.SchemaField("_platform", "STRING"),
+        bigquery.SchemaField("_run_id", "STRING"),
+        bigquery.SchemaField("_extract_from", "DATE"),
+        bigquery.SchemaField("_extract_to", "DATE"),
+        bigquery.SchemaField("_schema_flag", "STRING"),
+    ]
+    return fields
+
+
+def load_csv_to_raw(
+    csv_content: str,
+    dataset_id: str,
+    table_id: str,
+    source: str,
+    app_id: str,
+    platform: str,
+    date_from: str,
+    date_to: str,
+    expected_columns: list[str] | None = None,
+    project_id: str = GCP_PROJECT,
+) -> int:
+    """
+    Load verbatim CSV content into a BigQuery raw table.
+    All source columns land as STRING. Metadata columns are appended.
+    Strategy: append only. Staging deduplicates by latest _ingested_at per natural key.
+    Returns number of rows loaded.
+    """
+    client = bigquery.Client(project=project_id)
+    run_id = str(uuid.uuid4())
+    ingested_at = datetime.now(UTC).isoformat()
+
+    reader = csv.DictReader(io.StringIO(csv_content))
+    source_columns = reader.fieldnames or []
+
+    schema_flag = ""
+    if expected_columns:
+        missing = set(expected_columns) - set(source_columns)
+        extra = set(source_columns) - set(expected_columns)
+        if missing or extra:
+            schema_flag = f"missing={sorted(missing)};extra={sorted(extra)}"
+            logger.warning(
+                "Schema drift detected",
+                extra={"table": table_id, "schema_flag": schema_flag},
+            )
+
+    rows = []
+    for row in reader:
+        row["_ingested_at"] = ingested_at
+        row["_source"] = source
+        row["_app_id"] = app_id
+        row["_platform"] = platform
+        row["_run_id"] = run_id
+        row["_extract_from"] = date_from
+        row["_extract_to"] = date_to
+        row["_schema_flag"] = schema_flag
+        rows.append(row)
+
+    if not rows:
+        logger.warning(
+            "Empty response, skipping load",
+            extra={"table": table_id, "app_id": app_id, "platform": platform},
+        )
+        return 0
+
+    table_ref = f"{project_id}.{dataset_id}.{table_id}"
+    schema = _build_schema(source_columns)
+
+    job_config = bigquery.LoadJobConfig(
+        schema=schema,
+        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+        source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+        # Partition by _ingested_at date, cluster by _platform
+        time_partitioning=bigquery.TimePartitioning(
+            type_=bigquery.TimePartitioningType.DAY,
+            field="_ingested_at",
+        ),
+    )
+
+    load_job = client.load_table_from_json(rows, table_ref, job_config=job_config)
+    load_job.result()
+
+    logger.info(
+        "Loaded rows to BQ",
+        extra={
+            "table": table_ref,
+            "rows": len(rows),
+            "run_id": run_id,
+            "schema_flag": schema_flag or "ok",
+        },
+    )
+    return len(rows)
