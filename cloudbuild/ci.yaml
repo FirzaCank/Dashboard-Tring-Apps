@@ -1,0 +1,49 @@
+steps:
+  - name: "python:3.12-slim"
+    id: install-deps
+    entrypoint: pip
+    args: ["install", "uv"]
+
+  - name: "python:3.12-slim"
+    id: lint
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install uv
+        cd ingestion
+        uv sync
+        uv run ruff check src/ tests/
+        uv run ruff format --check src/ tests/
+
+  - name: "python:3.12-slim"
+    id: test
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        pip install uv
+        cd ingestion
+        uv sync
+        uv run pytest tests/ -v
+
+  - name: "ghcr.io/dbt-labs/dbt-bigquery:1.8.2"
+    id: dbt-parse
+    entrypoint: dbt
+    args: ["parse", "--profiles-dir", "."]
+    dir: transform
+
+  - name: "hashicorp/terraform:1.5"
+    id: terraform-validate-dev
+    entrypoint: terraform
+    args: ["validate"]
+    dir: infra/envs/dev
+
+  - name: "hashicorp/terraform:1.5"
+    id: terraform-validate-prod
+    entrypoint: terraform
+    args: ["validate"]
+    dir: infra/envs/prod
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -1,0 +1,73 @@
+substitutions:
+  _ENV: dev
+  _REGION: asia-southeast2
+  _PROJECT: dashboard-tring-dev
+  _REGISTRY: asia-southeast2-docker.pkg.dev
+  _REPO: tring-service
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-ingestion
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/${_PROJECT}/${_REPO}/ingestion:$COMMIT_SHA
+      - -t
+      - ${_REGISTRY}/${_PROJECT}/${_REPO}/ingestion:latest
+      - ingestion/
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-dbt
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/${_PROJECT}/${_REPO}/dbt:$COMMIT_SHA
+      - -t
+      - ${_REGISTRY}/${_PROJECT}/${_REPO}/dbt:latest
+      - transform/
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-ingestion
+    args: ["push", "--all-tags", "${_REGISTRY}/${_PROJECT}/${_REPO}/ingestion"]
+    waitFor: ["build-ingestion"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-dbt
+    args: ["push", "--all-tags", "${_REGISTRY}/${_PROJECT}/${_REPO}/dbt"]
+    waitFor: ["build-dbt"]
+
+  - name: "hashicorp/terraform:1.5"
+    id: tf-apply
+    entrypoint: terraform
+    args: ["apply", "-var-file=terraform.tfvars", "-auto-approve"]
+    dir: infra/envs/dev
+    waitFor: ["push-ingestion", "push-dbt"]
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: deploy-appsflyer-job
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - update
+      - extract-appsflyer
+      - --image=${_REGISTRY}/${_PROJECT}/${_REPO}/ingestion:$COMMIT_SHA
+      - --region=${_REGION}
+      - --project=${_PROJECT}
+    waitFor: ["tf-apply"]
+
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    id: deploy-dbt-job
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - update
+      - dbt-transform
+      - --image=${_REGISTRY}/${_PROJECT}/${_REPO}/dbt:$COMMIT_SHA
+      - --region=${_REGION}
+      - --project=${_PROJECT}
+    waitFor: ["tf-apply"]
+
+options:
+  logging: CLOUD_LOGGING_ONLY
