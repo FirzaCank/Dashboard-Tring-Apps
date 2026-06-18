@@ -1,0 +1,19 @@
+tring_transform:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT', 'dashboard-tring-dev') }}"
+      dataset: appsflyer_staging
+      location: asia-southeast2
+      threads: 4
+      timeout_seconds: 300
+    prod:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT', 'dashboard-tring-prod') }}"
+      dataset: appsflyer_staging
+      location: asia-southeast2
+      threads: 4
+      timeout_seconds: 300

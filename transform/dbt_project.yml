@@ -1,0 +1,52 @@
+name: tring_transform
+version: "1.0.0"
+config-version: 2
+
+profile: tring_transform
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  tring_transform:
+    staging:
+      +materialized: view
+      +schema: appsflyer_staging
+      appsflyer:
+        +tags: ["appsflyer", "staging"]
+    marts:
+      +materialized: table
+      appsflyer:
+        +tags: ["appsflyer", "mart"]
+        mart_appsflyer_install_attribution:
+          +partition_by:
+            field: install_date
+            data_type: date
+          +cluster_by: ["media_source", "campaign", "platform"]
+        mart_appsflyer_campaign_performance:
+          +partition_by:
+            field: date
+            data_type: date
+          +cluster_by: ["media_source", "campaign", "platform"]
+        mart_appsflyer_user_quality:
+          +partition_by:
+            field: date
+            data_type: date
+          +cluster_by: ["media_source", "campaign", "platform"]
+        mart_appsflyer_retention:
+          +partition_by:
+            field: cohort_date
+            data_type: date
+          +cluster_by: ["media_source", "campaign", "platform"]
+        mart_appsflyer_fraud:
+          +partition_by:
+            field: date
+            data_type: date
+          +cluster_by: ["media_source", "campaign", "platform"]
+
+seeds:
+  tring_transform:
+    +schema: appsflyer_staging

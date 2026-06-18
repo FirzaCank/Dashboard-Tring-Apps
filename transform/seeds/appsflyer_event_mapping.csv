@@ -1,0 +1,8 @@
+event_name,category
+SplashScreen_Loading,open_app
+Login_PreLogin_Masuk,login
+Login_BottomSheet_Masuk,login
+BeliTE_TransaksiSukses,purchase
+BayarGadai_TransaksiSukses,purchase
+BayarAngsuran_TransaksiSukses,purchase
+Onboarding_BuatPIN_Berhasil,registrations

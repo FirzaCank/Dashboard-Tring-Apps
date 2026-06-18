@@ -1,0 +1,118 @@
+version: 2
+
+models:
+  - name: mart_appsflyer_install_attribution
+    description: "Install attribution grain: one row per appsflyer_id per install."
+    columns:
+      - name: appsflyer_id
+        tests:
+          - not_null
+      - name: install_date
+        tests:
+          - not_null
+      - name: media_source
+        tests:
+          - not_null
+      - name: platform
+        tests:
+          - not_null
+
+  - name: mart_appsflyer_campaign_performance
+    description: "Campaign performance grain: date x media_source x campaign x platform x country."
+    columns:
+      - name: date
+        tests:
+          - not_null
+      - name: media_source
+        tests:
+          - not_null
+      - name: platform
+        tests:
+          - not_null
+      - name: impressions
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: ctr
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or (>= 0 and <= 1)"
+              severity: warn
+      - name: cpc
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or >= 0"
+              severity: warn
+      - name: cpi
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or >= 0"
+              severity: warn
+
+  - name: mart_appsflyer_user_quality
+    description: "User quality grain: date x media_source x campaign x platform x country."
+    columns:
+      - name: date
+        tests:
+          - not_null
+      - name: platform
+        tests:
+          - not_null
+      - name: conversion_rate
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or (>= 0 and <= 1)"
+              severity: warn
+      - name: cost_per_registration
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or >= 0"
+              severity: warn
+
+  - name: mart_appsflyer_retention
+    description: "Retention grain: cohort_date x media_source x campaign x platform x country."
+    columns:
+      - name: cohort_date
+        tests:
+          - not_null
+      - name: platform
+        tests:
+          - not_null
+      - name: cohort_size
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "> 0"
+      - name: d1_retention
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or (>= 0 and <= 1)"
+              severity: warn
+      - name: d7_retention
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or (>= 0 and <= 1)"
+              severity: warn
+      - name: d30_retention
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or (>= 0 and <= 1)"
+              severity: warn
+
+  - name: mart_appsflyer_fraud
+    description: "Fraud grain: date x media_source x campaign x platform x country."
+    columns:
+      - name: date
+        tests:
+          - not_null
+      - name: platform
+        tests:
+          - not_null
+      - name: blocked_installs
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: ">= 0"
+      - name: fraud_rate
+        tests:
+          - dbt_utils.expression_is_true:
+              expression: "is null or (>= 0 and <= 1)"
+              severity: warn
