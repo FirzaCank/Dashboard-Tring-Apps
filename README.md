@@ -5,7 +5,6 @@ Data pipeline for Tring! by Pegadaian. Sources: AppsFlyer, MoEngage, Google Play
 ## Architecture
 
 ```
-Cloud Scheduler (2x/day)
   -> Cloud Workflows
       -> [parallel] Cloud Run Jobs (extract per source)
       -> Cloud Run Job (dbt transform)
