@@ -3,7 +3,7 @@
 import os
 
 # GCP
-GCP_PROJECT = os.environ.get("GCP_PROJECT", "dashboard-tring-dev")
+GCP_PROJECT = os.environ.get("GCP_PROJECT")  # required at runtime; validated in cli.py
 REGION = os.environ.get("REGION", "asia-southeast2")
 
 # BigQuery datasets

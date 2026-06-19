@@ -4,7 +4,7 @@ tring_transform:
     dev:
       type: bigquery
       method: oauth
-      project: "{{ env_var('GCP_PROJECT', 'dashboard-tring-dev') }}"
+      project: "{{ env_var('GCP_PROJECT') }}"
       dataset: appsflyer_staging
       location: asia-southeast2
       threads: 4
@@ -12,7 +12,7 @@ tring_transform:
     prod:
       type: bigquery
       method: oauth
-      project: "{{ env_var('GCP_PROJECT', 'dashboard-tring-prod') }}"
+      project: "{{ env_var('GCP_PROJECT') }}"
       dataset: appsflyer_staging
       location: asia-southeast2
       threads: 4

@@ -2,7 +2,7 @@ version: 2
 
 sources:
   - name: appsflyer_raw
-    database: "{{ env_var('GCP_PROJECT', 'dashboard-tring-dev') }}"
+    database: "{{ env_var('GCP_PROJECT') }}"
     schema: appsflyer_raw
     tables:
       - name: raw_installs
