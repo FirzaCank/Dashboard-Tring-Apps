@@ -1,5 +1,4 @@
 substitutions:
-  _ENV: dev
   _REGION: asia-southeast2
   _PROJECT: hypefast-data-staging
   _REGISTRY: asia-southeast2-docker.pkg.dev

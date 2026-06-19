@@ -1,18 +1,13 @@
 steps:
   - name: "python:3.12-slim"
-    id: install-deps
-    entrypoint: pip
-    args: ["install", "uv"]
-
-  - name: "python:3.12-slim"
     id: lint
     entrypoint: bash
     args:
       - -c
       - |
-        pip install uv
+        pip install uv --quiet
         cd ingestion
-        uv sync
+        uv sync --quiet
         uv run ruff check src/ tests/
         uv run ruff format --check src/ tests/
 
@@ -22,16 +17,20 @@ steps:
     args:
       - -c
       - |
-        pip install uv
+        pip install uv --quiet
         cd ingestion
-        uv sync
+        uv sync --quiet
         uv run pytest tests/ -v
+    env:
+      - "GCP_PROJECT=ci-placeholder"
 
   - name: "ghcr.io/dbt-labs/dbt-bigquery:1.8.2"
     id: dbt-parse
     entrypoint: dbt
     args: ["parse", "--profiles-dir", "."]
     dir: transform
+    env:
+      - "GCP_PROJECT=ci-placeholder"
 
   - name: "hashicorp/terraform:1.5"
     id: terraform-validate-dev

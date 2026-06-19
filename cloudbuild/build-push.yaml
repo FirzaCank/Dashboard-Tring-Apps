@@ -1,0 +1,35 @@
+substitutions:
+  _PROJECT: ""
+  _REGISTRY: asia-southeast2-docker.pkg.dev
+  _REPO: tring-service
+  _TAG: latest
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-ingestion
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/${_PROJECT}/${_REPO}/ingestion:${_TAG}
+      - ingestion/
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: build-dbt
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/${_PROJECT}/${_REPO}/dbt:${_TAG}
+      - transform/
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-ingestion
+    args: ["push", "${_REGISTRY}/${_PROJECT}/${_REPO}/ingestion:${_TAG}"]
+    waitFor: ["build-ingestion"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-dbt
+    args: ["push", "${_REGISTRY}/${_PROJECT}/${_REPO}/dbt:${_TAG}"]
+    waitFor: ["build-dbt"]
+
+options:
+  logging: CLOUD_LOGGING_ONLY
