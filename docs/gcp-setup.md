@@ -108,6 +108,36 @@ Datasets are also auto-created by the ingestion code on first run (safe to skip)
 
 ---
 
+## 7. Build and Push Container Images
+
+No Docker Desktop required. All builds run via Cloud Build.
+
+**One-time auth:**
+```bash
+gcloud auth configure-docker asia-southeast2-docker.pkg.dev --project=$PROJECT
+```
+
+**Build + push both images:**
+```bash
+gcloud builds submit . \
+  --config=cloudbuild/build-push.yaml \
+  --substitutions="_PROJECT=${PROJECT}" \
+  --project=$PROJECT
+```
+
+This builds `ingestion` and `dbt` images and pushes them to:
+```
+asia-southeast2-docker.pkg.dev/${PROJECT}/tring-service/ingestion:latest
+asia-southeast2-docker.pkg.dev/${PROJECT}/tring-service/dbt:latest
+```
+
+**Verify:**
+```bash
+gcloud artifacts docker images list asia-southeast2-docker.pkg.dev/${PROJECT}/tring-service --project=$PROJECT
+```
+
+---
+
 ## IAM Summary
 
 | Service Account | Role | Scope |

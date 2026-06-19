@@ -1,9 +1,9 @@
 # Copy this file to terraform.tfvars and fill in values.
 # terraform.tfvars is gitignored — never commit it.
 
-project_id    = "dashboard-tring-dev"
+project_id    = "YOUR_GCP_PROJECT_ID"
 region        = "asia-southeast2"
-github_owner  = "rectoversomedia"
-github_repo   = "Dashboard-Tring-"
-alert_email   = "cuanpintar.vendor.sapti@pegadaian.co.id"
+github_owner  = "YOUR_GITHUB_ORG_OR_USER"
+github_repo   = "YOUR_GITHUB_REPO_NAME"
+alert_email   = "YOUR_ALERT_EMAIL"
 registry_repo = "tring-service"
