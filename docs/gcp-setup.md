@@ -138,6 +138,99 @@ gcloud artifacts docker images list asia-southeast2-docker.pkg.dev/${PROJECT}/tr
 
 ---
 
+## 8. Deploy Cloud Run Jobs
+
+```bash
+REGISTRY=asia-southeast2-docker.pkg.dev
+
+# extract-appsflyer
+gcloud run jobs create extract-appsflyer \
+  --image=${REGISTRY}/${PROJECT}/tring-service/ingestion:latest \
+  --region=asia-southeast2 \
+  --service-account=sa-extract-appsflyer@${PROJECT}.iam.gserviceaccount.com \
+  --set-env-vars="GCP_PROJECT=${PROJECT},BQ_DATASET_RAW=appsflyer_raw,REGION=asia-southeast2" \
+  --set-secrets="APPSFLYER_API_TOKEN=appsflyer-api-token:latest" \
+  --project=$PROJECT
+
+# dbt-transform
+gcloud run jobs create dbt-transform \
+  --image=${REGISTRY}/${PROJECT}/tring-service/dbt:latest \
+  --region=asia-southeast2 \
+  --service-account=sa-dbt@${PROJECT}.iam.gserviceaccount.com \
+  --set-env-vars="GCP_PROJECT=${PROJECT}" \
+  --args="build,--profiles-dir,.,--target,prod" \
+  --project=$PROJECT
+```
+
+To update an existing job (after new image push):
+```bash
+gcloud run jobs update extract-appsflyer \
+  --image=${REGISTRY}/${PROJECT}/tring-service/ingestion:latest \
+  --region=asia-southeast2 --project=$PROJECT
+
+gcloud run jobs update dbt-transform \
+  --image=${REGISTRY}/${PROJECT}/tring-service/dbt:latest \
+  --region=asia-southeast2 --project=$PROJECT
+```
+
+---
+
+## 9. Deploy Cloud Workflows
+
+```bash
+gcloud workflows deploy pipeline \
+  --location=asia-southeast2 \
+  --source=orchestration/workflows/pipeline.yaml \
+  --service-account=sa-workflows@${PROJECT}.iam.gserviceaccount.com \
+  --project=$PROJECT
+```
+
+---
+
+## 10. Create Cloud Scheduler Jobs
+
+```bash
+# 08:00 WIB (01:00 UTC)
+gcloud scheduler jobs create http pipeline-trigger-morning \
+  --location=asia-southeast2 \
+  --schedule="0 1 * * *" \
+  --time-zone="Asia/Jakarta" \
+  --uri="https://workflowexecutions.googleapis.com/v1/projects/${PROJECT}/locations/asia-southeast2/workflows/pipeline/executions" \
+  --message-body="{}" \
+  --oauth-service-account-email=sa-scheduler@${PROJECT}.iam.gserviceaccount.com \
+  --project=$PROJECT
+
+# 20:00 WIB (13:00 UTC)
+gcloud scheduler jobs create http pipeline-trigger-afternoon \
+  --location=asia-southeast2 \
+  --schedule="0 13 * * *" \
+  --time-zone="Asia/Jakarta" \
+  --uri="https://workflowexecutions.googleapis.com/v1/projects/${PROJECT}/locations/asia-southeast2/workflows/pipeline/executions" \
+  --message-body="{}" \
+  --oauth-service-account-email=sa-scheduler@${PROJECT}.iam.gserviceaccount.com \
+  --project=$PROJECT
+```
+
+---
+
+## Note on Terraform
+
+The `infra/` directory contains Terraform modules that codify all of the above as infrastructure-as-code. Terraform is **optional** — the `gcloud` commands above are the authoritative deploy method and produce identical results.
+
+**When to use Terraform:**
+- Client wants full IaC reproducibility for their prod environment
+- Multiple environments need to stay in sync
+- Team wants drift detection via `terraform plan`
+
+**When to skip Terraform (current approach):**
+- Prod runs on client GitLab + VPN — Terraform state backend (GCS) adds complexity in a VPN-gated environment
+- `gcloud` commands in this guide are sufficient, explicit, and auditable
+- Terraform is available in `infra/` as a reference and can be adopted later without changing anything else
+
+If the client wants to adopt Terraform later: copy `infra/envs/prod/terraform.tfvars.example` to `terraform.tfvars`, fill in values, run `terraform init && terraform apply`. All modules are already written.
+
+---
+
 ## IAM Summary
 
 | Service Account | Role | Scope |
