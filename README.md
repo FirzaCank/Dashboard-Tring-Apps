@@ -12,7 +12,7 @@ Data pipeline for multi-source mobile app analytics. Sources: AppsFlyer, MoEngag
   -> Looker Studio (mart layer)
 ```
 
-Region: `asia-southeast2` (Jakarta). Environments: `dev` (hypefast-data-staging), `prod` (client GCP — deployed via GitLab + VPN).
+Region: `asia-southeast2` (Jakarta). Environments: `dev` (consultant GCP project), `prod` (client GCP — deployed via GitLab + VPN).
 
 ## Prerequisites
 
@@ -56,7 +56,7 @@ tring-data-pipeline/
 
 | Env  | GCP Project           | Access                                  |
 |------|-----------------------|-----------------------------------------|
-| dev  | hypefast-data-staging | Consultant (dev + testing)              |
+| dev  | Consultant GCP project (set via `GCP_PROJECT`) | Consultant (dev + testing) |
 | prod | Client GCP project    | Client only — deployed via GitLab + VPN |
 
 > **Prod deployment:** Code is pushed to the client's GitLab (VPN-gated). Cloud Build triggers on the client's GCP pick it up and deploy. No direct prod GCP access required from the consultant side.
