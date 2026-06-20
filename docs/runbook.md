@@ -2,14 +2,16 @@
 
 ## 1. Triggering a manual pipeline run
 
-Runs with auto-computed yesterday as date range:
+> **Workflow behavior:** Workflow triggers extract-appsflyer, polls every 15s until SUCCEEDED, then triggers dbt-transform, polls until SUCCEEDED, then returns. Total duration ~2-5 minutes. If extract fails (e.g. rate limit, API error), Workflow fails immediately — dbt does NOT run.
+
+**Run pipeline (T-1 auto-computed):**
 ```bash
 gcloud workflows run pipeline \
   --location=asia-southeast2 \
   --project=$PROJECT
 ```
 
-Run for a specific date range (backfill via Workflow):
+**Run for specific date range (backfill):**
 ```bash
 gcloud workflows run pipeline \
   --data='{"date_from":"2026-06-01","date_to":"2026-06-10"}' \
@@ -17,32 +19,27 @@ gcloud workflows run pipeline \
   --project=$PROJECT
 ```
 
-Watch execution status:
-```bash
-gcloud workflows executions list pipeline \
-  --location=asia-southeast2 \
-  --project=$PROJECT \
-  --limit=5
+---
+
+## 2. Verifying pipeline success
+
+**Step 1 — Check Workflow execution result:**
+
+Successful run output:
+```
+state: SUCCEEDED
+result: '"Pipeline complete for 2026-06-19 to 2026-06-19"'
+duration: ~90-300s
 ```
 
-Check execution detail (replace EXECUTION_ID from list above):
-```bash
-gcloud workflows executions describe EXECUTION_ID \
-  --workflow=pipeline \
-  --location=asia-southeast2 \
-  --project=$PROJECT
+Failed run output:
+```
+state: FAILED
+error:
+  context: "extract-appsflyer completed but not all tasks succeeded"
 ```
 
-## 2. Running a single extractor manually
-
-```bash
-gcloud run jobs execute extract-appsflyer \
-  --region=asia-southeast2 \
-  --project=$PROJECT \
-  --args="python,-m,tring_ingest,--source,appsflyer,--from,2026-06-19,--to,2026-06-19"
-```
-
-Check logs after execution:
+**Step 2 — Check extract logs (look for "8 extracts succeeded" or errors):**
 ```bash
 gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="extract-appsflyer"' \
   --project=$PROJECT \
@@ -51,20 +48,60 @@ gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name=
   --format="table(timestamp,textPayload)"
 ```
 
-For JSON structured logs (more detail):
+Key lines to look for:
+- `Extract complete: 8/8 succeeded` → success
+- `RuntimeError: Extract failed for N pull(s)` → failure, check which endpoint/platform
+
+**Step 3 — Check dbt logs (look for PASS=63 ERROR=0):**
 ```bash
-gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="extract-appsflyer"' \
+gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="dbt-transform"' \
   --project=$PROJECT \
   --limit=50 \
   --order=desc \
-  --format=json
+  --format="table(timestamp,textPayload)"
 ```
 
-## 3. Backfilling historical data
+Key lines to look for:
+- `Done. PASS=63 WARN=0 ERROR=0` → success
+- `Done. PASS=XX ERROR=N` → test failures, check which model
+
+**Step 4 — Check execution list (optional):**
+```bash
+gcloud run jobs executions list \
+  --job=extract-appsflyer \
+  --region=asia-southeast2 \
+  --project=$PROJECT \
+  --limit=3
+```
+
+`✔` = succeeded, `X` = failed, `…` = running.
+
+---
+
+## 3. Running a single job manually
+
+**Extract only (bypass Workflow):**
+```bash
+gcloud run jobs execute extract-appsflyer \
+  --region=asia-southeast2 \
+  --project=$PROJECT \
+  --update-env-vars="DATE_FROM=2026-06-19,DATE_TO=2026-06-19"
+```
+
+**dbt only (bypass Workflow):**
+```bash
+gcloud run jobs execute dbt-transform \
+  --region=asia-southeast2 \
+  --project=$PROJECT
+```
+
+---
+
+## 4. Backfilling historical data
 
 Raw is append-only. Staging deduplicates by latest `_ingested_at` per natural key, so re-runs are safe.
 
-**Option A — Backfill via Workflow (recommended, runs extract + dbt in sequence):**
+**Option A — Backfill via Workflow (recommended — runs extract + dbt in sequence):**
 ```bash
 gcloud workflows run pipeline \
   --data='{"date_from":"2026-05-01","date_to":"2026-05-31"}' \
@@ -77,7 +114,7 @@ gcloud workflows run pipeline \
 gcloud run jobs execute extract-appsflyer \
   --region=asia-southeast2 \
   --project=$PROJECT \
-  --args="python,-m,tring_ingest,--source,appsflyer,--from,2026-05-01,--to,2026-05-31"
+  --update-env-vars="DATE_FROM=2026-05-01,DATE_TO=2026-05-31"
 ```
 
 After Option B extract completes, run dbt manually:
@@ -87,93 +124,91 @@ gcloud run jobs execute dbt-transform \
   --project=$PROJECT
 ```
 
-Check dbt logs:
-```bash
-gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="dbt-transform"' \
-  --project=$PROJECT \
-  --limit=100 \
-  --order=desc \
-  --format="table(timestamp,textPayload)"
-```
+---
 
-## 4. Rotating the AppsFlyer API token
+## 5. Rotating the AppsFlyer API token
 
 ```bash
-# Add a new version (old version stays until you destroy it)
 echo -n "NEW_TOKEN_VALUE" | gcloud secrets versions add appsflyer-api-token \
   --data-file=- \
   --project=$PROJECT
 
-# Verify new version is active
 gcloud secrets versions list appsflyer-api-token --project=$PROJECT
 
-# Disable old version after confirming new one works
 gcloud secrets versions disable VERSION_NUMBER \
   --secret=appsflyer-api-token \
   --project=$PROJECT
 ```
 
-## 5. Known issue: in_app_events Android rate limit
+---
 
-AppsFlyer limits daily raw data downloads per app. When hit:
+## 6. Known issue: in_app_events rate limit
 
-- Error: `400 Bad Request` on `in_app_events_report/v5` for `com.pegadaiandigital`
-- iOS not affected
-- Limit resets daily — next scheduled run will retry automatically
-- To fix permanently: client contacts AppsFlyer CSM to increase limit (hello@appsflyer.com)
+AppsFlyer limits: `in_app_events` 12 calls/day/app, `installs` 24/day/app. When hit:
+
+- Error: `400 Bad Request` — "You've reached your maximum number of in-app event reports"
+- Workflow state: `FAILED` — "extract-appsflyer completed but not all tasks succeeded"
+- Resets at UTC 00:00 (07:00 WIB)
+- Production schedule (2x/day) uses 4 calls/day — safely under 12 limit
+- If hit in prod: check for runaway executions or excessive manual runs
+- To increase limit: client contacts AppsFlyer CSM (hello@appsflyer.com)
 - Reference: https://support.appsflyer.com/hc/en-us/articles/207034366
 
-This is an AppsFlyer plan limitation, not a pipeline bug.
+---
 
-## 6. Reading alerts
+## 7. Reading alerts
 
 When an alert fires:
 
-1. Check Cloud Workflows execution: `gcloud workflows executions list pipeline ...`
-2. Find the failed step and check Cloud Logging for that job.
-3. Common causes:
-   - **HTTP 401**: AppsFlyer token expired. Rotate token (Section 4).
-   - **HTTP 429**: Rate limit. Extractor has 3-attempt retry. If still failing, check AppsFlyer plan limits.
-   - **Empty response**: No data for that date window. Normal for new apps or holidays.
-   - **dbt test failure**: Check `dbt test` output in Cloud Logging. Run `dbt build --select failing_model` locally against dev.
+1. Check Cloud Workflows execution: `gcloud workflows executions list pipeline --location=asia-southeast2 --project=$PROJECT`
+2. Check Workflow error message — it names which step failed
+3. Check Cloud Logging for that job (sections 2-3 above)
 
-## 6. Adding a new source (MoEngage, Play Console, App Store Connect)
+Common causes:
+- **HTTP 401**: AppsFlyer token expired → rotate token (Section 5)
+- **HTTP 400 rate limit**: Daily quota exhausted → wait for UTC 00:00 reset
+- **Empty response**: No data for that date window — normal for new apps or holidays
+- **dbt ERROR=N**: Test failures → check which model, run `dbt build --select failing_model` locally
 
-1. Add a new package under `ingestion/src/tring_ingest/sources/<source_name>/`.
-2. Implement `client.py`, `endpoints.py`, `extract.py` following the AppsFlyer pattern.
-3. Add `--source <source_name>` to `cli.py`.
-4. Add new BigQuery datasets in `infra/modules/bigquery/main.tf`.
-5. Add new Cloud Run Job in `infra/modules/cloud_run_jobs/main.tf`.
-6. Add new service account in `infra/modules/iam/main.tf`.
-7. Add new secret in `infra/modules/secrets/main.tf`.
-8. Add the new extract job to the parallel branch in `orchestration/workflows/pipeline.yaml`.
-9. Add dbt models under `transform/models/staging/<source>/` and `transform/models/marts/<source>/`.
+---
 
-## 7. Checking dbt model freshness
+## 8. Adding a new source (MoEngage, Play Console, App Store Connect)
+
+1. Add package under `ingestion/src/tring_ingest/sources/<source_name>/`
+2. Implement `client.py`, `endpoints.py`, `extract.py` following AppsFlyer pattern
+3. Add `--source <source_name>` to `cli.py`
+4. Create new Cloud Run Job + SA + IAM (see `docs/gcp-setup.md`)
+5. Add new extract job to `pipeline.yaml` as parallel branch (min 2 branches required)
+6. Add dbt models under `transform/models/staging/<source>/` and `transform/models/marts/<source>/`
+
+---
+
+## 9. Deploying a change
+
+```bash
+# Build + push new image
+gcloud builds submit . \
+  --config=cloudbuild/build-push.yaml \
+  --substitutions="_PROJECT=$PROJECT" \
+  --project=$PROJECT
+
+# Update Cloud Run Job to new image
+gcloud run jobs update extract-appsflyer \
+  --image=asia-southeast2-docker.pkg.dev/$PROJECT/tring-service/ingestion:latest \
+  --region=asia-southeast2 \
+  --project=$PROJECT
+
+gcloud run jobs update dbt-transform \
+  --image=asia-southeast2-docker.pkg.dev/$PROJECT/tring-service/dbt:latest \
+  --region=asia-southeast2 \
+  --project=$PROJECT
+```
+
+---
+
+## 10. Checking dbt model freshness
 
 ```bash
 cd transform
 dbt source freshness --profiles-dir . --target dev
 ```
-
-## 8. Deploying a change
-
-```bash
-# Dev — push to GitHub, Cloud Build triggers automatically
-git push origin main
-
-# Prod — push to client GitLab (VPN required)
-# Cloud Build on client GCP picks up the push and deploys
-git push client-gitlab main
-```
-
-## 9. Terraform state
-
-State is local by default. For team use, configure GCS backend in `infra/envs/dev/main.tf`:
-```hcl
-backend "gcs" {
-  bucket = "tf-state-dev"
-  prefix = "terraform/state"
-}
-```
-Create the bucket manually first (it cannot be managed by the Terraform it stores state for).
