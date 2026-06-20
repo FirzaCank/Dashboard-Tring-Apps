@@ -16,10 +16,22 @@ SOURCES = ["appsflyer", "moengage", "play_console", "app_store"]
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Dashboard Monitoring & AI Insight  -  data pipeline ingestion")
+    parser = argparse.ArgumentParser(
+        description="Dashboard Monitoring & AI Insight  -  data pipeline ingestion"
+    )
     parser.add_argument("--source", required=True, choices=SOURCES, help="Data source to extract")
-    parser.add_argument("--from", dest="date_from", default=os.environ.get("DATE_FROM"), help="Start date YYYY-MM-DD (or env DATE_FROM)")
-    parser.add_argument("--to", dest="date_to", default=os.environ.get("DATE_TO"), help="End date YYYY-MM-DD (or env DATE_TO)")
+    parser.add_argument(
+        "--from",
+        dest="date_from",
+        default=os.environ.get("DATE_FROM"),
+        help="Start date YYYY-MM-DD (or env DATE_FROM)",
+    )
+    parser.add_argument(
+        "--to",
+        dest="date_to",
+        default=os.environ.get("DATE_TO"),
+        help="End date YYYY-MM-DD (or env DATE_TO)",
+    )
     args = parser.parse_args(argv)
     if not args.date_from or not args.date_to:
         parser.error("--from/--to required (or set DATE_FROM/DATE_TO env vars)")
@@ -28,7 +40,9 @@ def parse_args(argv=None):
 
 def main(argv=None):
     if not os.environ.get("GCP_PROJECT"):
-        raise SystemExit("ERROR: GCP_PROJECT environment variable is required. Set it before running.")
+        raise SystemExit(
+            "ERROR: GCP_PROJECT environment variable is required. Set it before running."
+        )
 
     args = parse_args(argv)
     logger.info(
