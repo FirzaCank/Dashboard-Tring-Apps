@@ -64,7 +64,7 @@ models:
         tests:
           - not_null
       - name: conversion_rate
-        # No range test — can exceed 1.0 due to date grain mismatch (event_date vs install_date).
+        # No range test  -  can exceed 1.0 due to date grain mismatch (event_date vs install_date).
         # A user who installs on day T and registers on day T+3 creates registrations with no
         # matching installs on that date, and vice versa. This is expected behavior.
       - name: cost_per_registration

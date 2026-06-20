@@ -4,8 +4,8 @@
 
 Two test layers exist before code reaches GCP:
 
-1. **Local tests** (no GCP, no real API) — run on every change
-2. **Integration tests** (real GCP dev project) — run before deploying to prod
+1. **Local tests** (no GCP, no real API)  -  run on every change
+2. **Integration tests** (real GCP dev project)  -  run before deploying to prod
 
 ---
 
@@ -75,7 +75,7 @@ What it does: runs all test cases in `tests/`. The `-v` flag shows each test nam
 | `TestExtractRun` | 8 HTTP pulls fired (4 endpoints x 2 app IDs), raises error when any pull fails |
 | `TestHttpRetry` | HTTP 503 triggers retry, raises after 3 attempts |
 
-All tests are mocked — no real HTTP calls, no real BigQuery connection needed.
+All tests are mocked  -  no real HTTP calls, no real BigQuery connection needed.
 
 ### Run a single test class
 
@@ -102,7 +102,7 @@ cd transform
 dbt parse --profiles-dir .
 ```
 
-What it does: parses all `.sql` model files and `.yml` config files without connecting to BigQuery. Catches SQL syntax errors, missing `ref()` targets, bad YAML keys. Fast — completes in under 2 seconds.
+What it does: parses all `.sql` model files and `.yml` config files without connecting to BigQuery. Catches SQL syntax errors, missing `ref()` targets, bad YAML keys. Fast  -  completes in under 2 seconds.
 
 ### Check source freshness config
 

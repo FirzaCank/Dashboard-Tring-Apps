@@ -1,4 +1,4 @@
-# Handover Guide — Client Production Setup
+# Handover Guide  -  Client Production Setup
 
 This guide is for the client's GCP/DevOps admin. It covers the one-time setup needed to run the pipeline autonomously in the client's GCP environment. After setup, all deployments are automatic via Cloud Build on every git push.
 
@@ -31,7 +31,7 @@ Then run sections 1–6 of `docs/gcp-setup.md` in order:
 1. Enable APIs
 2. Create service accounts
 3. Grant IAM roles
-4. Create secrets (AppsFlyer token — see note below)
+4. Create secrets (AppsFlyer token  -  see note below)
 5. Create Artifact Registry repository
 6. Create BigQuery datasets
 

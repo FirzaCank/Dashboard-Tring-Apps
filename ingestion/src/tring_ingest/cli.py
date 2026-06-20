@@ -16,7 +16,7 @@ SOURCES = ["appsflyer", "moengage", "play_console", "app_store"]
 
 
 def parse_args(argv=None):
-    parser = argparse.ArgumentParser(description="Dashboard Monitoring & AI Insight — data pipeline ingestion")
+    parser = argparse.ArgumentParser(description="Dashboard Monitoring & AI Insight  -  data pipeline ingestion")
     parser.add_argument("--source", required=True, choices=SOURCES, help="Data source to extract")
     parser.add_argument("--from", dest="date_from", default=os.environ.get("DATE_FROM"), help="Start date YYYY-MM-DD (or env DATE_FROM)")
     parser.add_argument("--to", dest="date_to", default=os.environ.get("DATE_TO"), help="End date YYYY-MM-DD (or env DATE_TO)")

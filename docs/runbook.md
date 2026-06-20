@@ -1,8 +1,8 @@
-# Runbook: Dashboard Monitoring & AI Insight — Data Pipeline
+# Runbook: Dashboard Monitoring & AI Insight  -  Data Pipeline
 
 ## 1. Triggering a manual pipeline run
 
-> **Workflow behavior:** Workflow triggers extract-appsflyer, polls every 15s until SUCCEEDED, then triggers dbt-transform, polls until SUCCEEDED, then returns. Total duration ~2-5 minutes. If extract fails (e.g. rate limit, API error), Workflow fails immediately — dbt does NOT run.
+> **Workflow behavior:** Workflow triggers extract-appsflyer, polls every 15s until SUCCEEDED, then triggers dbt-transform, polls until SUCCEEDED, then returns. Total duration ~2-5 minutes. If extract fails (e.g. rate limit, API error), Workflow fails immediately  -  dbt does NOT run.
 
 **Run pipeline (T-1 auto-computed):**
 ```bash
@@ -23,7 +23,7 @@ gcloud workflows run pipeline \
 
 ## 2. Verifying pipeline success
 
-**Step 1 — Check Workflow execution result:**
+**Step 1  -  Check Workflow execution result:**
 
 Successful run output:
 ```
@@ -39,7 +39,7 @@ error:
   context: "extract-appsflyer completed but not all tasks succeeded"
 ```
 
-**Step 2 — Check extract logs (look for "8 extracts succeeded" or errors):**
+**Step 2  -  Check extract logs (look for "8 extracts succeeded" or errors):**
 ```bash
 gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="extract-appsflyer"' \
   --project=$PROJECT \
@@ -52,7 +52,7 @@ Key lines to look for:
 - `Extract complete: 8/8 succeeded` → success
 - `RuntimeError: Extract failed for N pull(s)` → failure, check which endpoint/platform
 
-**Step 3 — Check dbt logs (look for PASS=63 ERROR=0):**
+**Step 3  -  Check dbt logs (look for PASS=63 ERROR=0):**
 ```bash
 gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="dbt-transform"' \
   --project=$PROJECT \
@@ -65,7 +65,7 @@ Key lines to look for:
 - `Done. PASS=63 WARN=0 ERROR=0` → success
 - `Done. PASS=XX ERROR=N` → test failures, check which model
 
-**Step 4 — Check execution list (optional):**
+**Step 4  -  Check execution list (optional):**
 ```bash
 gcloud run jobs executions list \
   --job=extract-appsflyer \
@@ -101,7 +101,7 @@ gcloud run jobs execute dbt-transform \
 
 Raw is append-only. Staging deduplicates by latest `_ingested_at` per natural key, so re-runs are safe.
 
-**Option A — Backfill via Workflow (recommended — runs extract + dbt in sequence):**
+**Option A  -  Backfill via Workflow (recommended  -  runs extract + dbt in sequence):**
 ```bash
 gcloud workflows run pipeline \
   --data='{"date_from":"2026-05-01","date_to":"2026-05-31"}' \
@@ -109,7 +109,7 @@ gcloud workflows run pipeline \
   --project=$PROJECT
 ```
 
-**Option B — Backfill extract only (manual, bypass Workflow):**
+**Option B  -  Backfill extract only (manual, bypass Workflow):**
 ```bash
 gcloud run jobs execute extract-appsflyer \
   --region=asia-southeast2 \
@@ -146,10 +146,10 @@ gcloud secrets versions disable VERSION_NUMBER \
 
 AppsFlyer limits: `in_app_events` 12 calls/day/app, `installs` 24/day/app. When hit:
 
-- Error: `400 Bad Request` — "You've reached your maximum number of in-app event reports"
-- Workflow state: `FAILED` — "extract-appsflyer completed but not all tasks succeeded"
+- Error: `400 Bad Request`  -  "You've reached your maximum number of in-app event reports"
+- Workflow state: `FAILED`  -  "extract-appsflyer completed but not all tasks succeeded"
 - Resets at UTC 00:00 (07:00 WIB)
-- Production schedule (2x/day) uses 4 calls/day — safely under 12 limit
+- Production schedule (2x/day) uses 4 calls/day  -  safely under 12 limit
 - If hit in prod: check for runaway executions or excessive manual runs
 - To increase limit: client contacts AppsFlyer CSM (hello@appsflyer.com)
 - Reference: https://support.appsflyer.com/hc/en-us/articles/207034366
@@ -161,13 +161,13 @@ AppsFlyer limits: `in_app_events` 12 calls/day/app, `installs` 24/day/app. When 
 When an alert fires:
 
 1. Check Cloud Workflows execution: `gcloud workflows executions list pipeline --location=asia-southeast2 --project=$PROJECT`
-2. Check Workflow error message — it names which step failed
+2. Check Workflow error message  -  it names which step failed
 3. Check Cloud Logging for that job (sections 2-3 above)
 
 Common causes:
 - **HTTP 401**: AppsFlyer token expired → rotate token (Section 5)
 - **HTTP 400 rate limit**: Daily quota exhausted → wait for UTC 00:00 reset
-- **Empty response**: No data for that date window — normal for new apps or holidays
+- **Empty response**: No data for that date window  -  normal for new apps or holidays
 - **dbt ERROR=N**: Test failures → check which model, run `dbt build --select failing_model` locally
 
 ---

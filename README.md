@@ -1,4 +1,4 @@
-# Dashboard Monitoring & AI Insight — Data Pipeline
+# Dashboard Monitoring & AI Insight  -  Data Pipeline
 
 Data pipeline for multi-source mobile app analytics. Sources: AppsFlyer, MoEngage, Google Play Console, App Store Connect. Target: BigQuery + Looker Studio.
 
@@ -12,14 +12,14 @@ Data pipeline for multi-source mobile app analytics. Sources: AppsFlyer, MoEngag
   -> Looker Studio (mart layer)
 ```
 
-Region: `asia-southeast2` (Jakarta). Environments: `dev` (consultant GCP project), `prod` (client GCP — deployed via GitLab + VPN).
+Region: `asia-southeast2` (Jakarta). Environments: `dev` (consultant GCP project), `prod` (client GCP  -  deployed via GitLab + VPN).
 
 ## Prerequisites
 
 - Python 3.12
-- [uv](https://docs.astral.sh/uv/) — for local ingestion development (`uv sync` in `ingestion/`)
-- [dbt-core](https://docs.getdbt.com/) with `dbt-bigquery` — for local transform runs (`cd transform && dbt run`)
-- Terraform >= 1.5 — optional, only if adopting IaC (see note below)
+- [uv](https://docs.astral.sh/uv/)  -  for local ingestion development (`uv sync` in `ingestion/`)
+- [dbt-core](https://docs.getdbt.com/) with `dbt-bigquery`  -  for local transform runs (`cd transform && dbt run`)
+- Terraform >= 1.5  -  optional, only if adopting IaC (see note below)
 - `gcloud` CLI authenticated to the target project
 
 > **Docker Desktop not required.** Container images are built and pushed via Cloud Build (GCP-native). No local Docker needed in dev or prod.
@@ -50,7 +50,7 @@ tring-data-pipeline/
   ingestion/        Python extractor (shared image, one job per source)
   transform/        dbt project (staging + mart models)
   orchestration/    Cloud Workflows definition
-  infra/            Terraform (optional — modules + per-env wiring, not used in current deploy)
+  infra/            Terraform (optional  -  modules + per-env wiring, not used in current deploy)
   docs/             Runbook and reference
 ```
 
@@ -59,7 +59,7 @@ tring-data-pipeline/
 | Env  | GCP Project           | Access                                  |
 |------|-----------------------|-----------------------------------------|
 | dev  | Consultant GCP project (set via `GCP_PROJECT`) | Consultant (dev + testing) |
-| prod | Client GCP project    | Client only — deployed via GitLab + VPN |
+| prod | Client GCP project    | Client only  -  deployed via GitLab + VPN |
 
 > **Prod deployment:** Code is pushed to the client's GitLab (VPN-gated). Cloud Build triggers on the client's GCP pick it up and deploy. No direct prod GCP access required from the consultant side.
 

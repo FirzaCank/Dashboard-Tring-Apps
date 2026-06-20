@@ -27,7 +27,7 @@ transform/.user.yml
 !infra/envs/prod/terraform.tfvars.example
 .terraform.lock.hcl
 
-# Secrets — never commit
+# Secrets  -  never commit
 *.json
 !infra/**/*.json
 service-account*.json

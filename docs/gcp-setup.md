@@ -4,7 +4,7 @@ One-time provisioning steps for each GCP project (dev or prod). Run as a user wi
 
 Set project once:
 ```bash
-export PROJECT=YOUR_GCP_PROJECT_ID   # dev or prod — never hardcode, always set explicitly
+export PROJECT=YOUR_GCP_PROJECT_ID   # dev or prod  -  never hardcode, always set explicitly
 ```
 
 ---
@@ -26,7 +26,7 @@ gcloud iam service-accounts create sa-workflows --display-name="Cloud Workflows 
 gcloud iam service-accounts create sa-scheduler --display-name="Cloud Scheduler trigger" --project=$PROJECT
 ```
 
-> **Adding a new source (MoEngage, Play Console, App Store Connect):** create a dedicated SA per source — `sa-extract-moengage`, `sa-extract-playstore`, etc. Grant only the roles that source needs. Never reuse an existing extractor SA for a different source.
+> **Adding a new source (MoEngage, Play Console, App Store Connect):** create a dedicated SA per source  -  `sa-extract-moengage`, `sa-extract-playstore`, etc. Grant only the roles that source needs. Never reuse an existing extractor SA for a different source.
 
 ---
 
@@ -164,7 +164,7 @@ gcloud run jobs create extract-appsflyer \
 
 # dbt-transform
 # ENTRYPOINT is hardcoded in Dockerfile: ["dbt", "build", "--profiles-dir", "/app", "--target", "prod"]
-# Do NOT set --command or --args here — they override the Dockerfile ENTRYPOINT and break dbt
+# Do NOT set --command or --args here  -  they override the Dockerfile ENTRYPOINT and break dbt
 gcloud run jobs create dbt-transform \
   --image=${REGISTRY}/${PROJECT}/tring-service/dbt:latest \
   --region=asia-southeast2 \
@@ -173,7 +173,7 @@ gcloud run jobs create dbt-transform \
   --project=$PROJECT
 ```
 
-> **extract-appsflyer date args:** dates (`--from`/`--to`) are passed via env vars `DATE_FROM`/`DATE_TO` at runtime — either by Cloud Workflows (`containerOverrides.env`) or by `--update-env-vars` on manual execute. The job itself has no default dates.
+> **extract-appsflyer date args:** dates (`--from`/`--to`) are passed via env vars `DATE_FROM`/`DATE_TO` at runtime  -  either by Cloud Workflows (`containerOverrides.env`) or by `--update-env-vars` on manual execute. The job itself has no default dates.
 
 **Test manual run extract (T-1):**
 ```bash
@@ -285,7 +285,7 @@ gcloud scheduler jobs create http pipeline-trigger-afternoon \
 
 ## Note on Terraform
 
-The `infra/` directory contains Terraform modules that codify all of the above as infrastructure-as-code. Terraform is **optional** — the `gcloud` commands above are the authoritative deploy method and produce identical results.
+The `infra/` directory contains Terraform modules that codify all of the above as infrastructure-as-code. Terraform is **optional**  -  the `gcloud` commands above are the authoritative deploy method and produce identical results.
 
 **When to use Terraform:**
 - Client wants full IaC reproducibility for their prod environment
@@ -293,7 +293,7 @@ The `infra/` directory contains Terraform modules that codify all of the above a
 - Team wants drift detection via `terraform plan`
 
 **When to skip Terraform (current approach):**
-- Prod runs on client GitLab + VPN — Terraform state backend (GCS) adds complexity in a VPN-gated environment
+- Prod runs on client GitLab + VPN  -  Terraform state backend (GCS) adds complexity in a VPN-gated environment
 - `gcloud` commands in this guide are sufficient, explicit, and auditable
 - Terraform is available in `infra/` as a reference and can be adopted later without changing anything else
 

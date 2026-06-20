@@ -16,8 +16,8 @@ def _env_var_name(secret_id: str) -> str:
 def get_secret(secret_id: str, project_id: str = GCP_PROJECT) -> str:
     """
     Fetch secret. Priority:
-    1. Env var matching secret_id (e.g. APPSFLYER_API_TOKEN) — for local/migration
-    2. Secret Manager — for Cloud Run production runtime
+    1. Env var matching secret_id (e.g. APPSFLYER_API_TOKEN)  -  for local/migration
+    2. Secret Manager  -  for Cloud Run production runtime
     """
     env_var = _env_var_name(secret_id)
     value = os.environ.get(env_var)
