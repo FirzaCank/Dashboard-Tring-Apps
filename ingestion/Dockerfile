@@ -2,22 +2,19 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:0.4.4 /uv /usr/local/bin/uv
+COPY pyproject.toml ./
 
-# Copy dependency files first for layer caching
-COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir \
+    "google-cloud-bigquery>=3.20" \
+    "google-cloud-secret-manager>=2.20" \
+    "requests>=2.32" \
+    "tenacity>=8.3"
 
-# Install production dependencies only (no dev extras)
-RUN uv sync --frozen --no-dev
-
-# Copy source
 COPY src/ ./src/
 
-# Run as non-root
 RUN useradd -m appuser
 USER appuser
 
 ENV PYTHONPATH=/app/src
 
-ENTRYPOINT ["uv", "run", "python", "-m", "tring_ingest"]
+ENTRYPOINT ["python", "-m", "tring_ingest"]
