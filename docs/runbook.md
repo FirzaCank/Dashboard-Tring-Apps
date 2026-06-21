@@ -1,8 +1,10 @@
 # Runbook: Dashboard Monitoring & AI Insight  -  Data Pipeline
 
+> **Schedule note:** Pipeline runs automatically twice daily via Cloud Scheduler (08:00 and 20:00 WIB). This schedule is a default assumption from the TSD - the client has not confirmed a final schedule. To update: `gcloud scheduler jobs update http pipeline-trigger-morning --schedule="0 H * * *" --location=asia-southeast2 --project=$PROJECT` (and same for `pipeline-trigger-afternoon`).
+
 ## 1. Triggering a manual pipeline run
 
-> **Workflow behavior:** Workflow triggers extract-appsflyer, polls every 15s until SUCCEEDED, then triggers dbt-transform, polls until SUCCEEDED, then returns. Total duration ~2-5 minutes. If extract fails (e.g. rate limit, API error), Workflow fails immediately  -  dbt does NOT run.
+> **Workflow behavior:** Workflow triggers extract-appsflyer, polls every 15s until SUCCEEDED, then triggers dbt-transform, polls until SUCCEEDED, then returns. Total duration ~7 minutes (verified). If extract fails (e.g. rate limit, API error), Workflow fails immediately  -  dbt does NOT run.
 
 **Run pipeline (T-1 auto-computed):**
 ```bash

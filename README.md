@@ -75,6 +75,8 @@ For client production onboarding (GitLab + VPN + Cloud Build setup), see [docs/h
 
 **Scheduled:** Cloud Scheduler triggers Cloud Workflows twice daily (08:00 and 20:00 WIB). No manual action needed.
 
+> **Note:** The 08:00 and 20:00 WIB schedule is a default assumption based on the TSD (twice daily to catch late-arriving data). The client has not confirmed a final schedule yet. To change it: `gcloud scheduler jobs update http pipeline-trigger-morning --schedule="0 HH * * *" --location=asia-southeast2 --project=PROJECT` (and same for `pipeline-trigger-afternoon`).
+
 **Manual run (yesterday):**
 ```bash
 gcloud workflows run pipeline --location=asia-southeast2 --project=YOUR_PROJECT
