@@ -341,7 +341,9 @@ gcloud scheduler jobs create http pipeline-trigger-afternoon \
 
 ## Note on Terraform
 
-The `infra/` directory contains Terraform modules that codify all of the above as infrastructure-as-code. Terraform is **optional**  -  the `gcloud` commands above are the authoritative deploy method and produce identical results.
+The `infra/` directory contains Terraform modules that codify the AppsFlyer infrastructure as infrastructure-as-code. Terraform is **optional**  -  the `gcloud` commands above are the authoritative deploy method and are the only fully maintained path.
+
+> **Terraform is AppsFlyer-only and lags the gcloud path.** The `infra/` modules do NOT yet provision the MoEngage resources (sa-extract-moengage, the moengage-api-creds secret, the extract-moengage Cloud Run Job, and its IAM). If you adopt Terraform, you must add those yourself or provision MoEngage via the gcloud commands in Sections 2-8 above. The gcloud commands in this guide are complete for both sources; the Terraform modules are not.
 
 **When to use Terraform:**
 - Client wants full IaC reproducibility for their prod environment
@@ -353,7 +355,7 @@ The `infra/` directory contains Terraform modules that codify all of the above a
 - `gcloud` commands in this guide are sufficient, explicit, and auditable
 - Terraform is available in `infra/` as a reference and can be adopted later without changing anything else
 
-If the client wants to adopt Terraform later: copy `infra/envs/prod/terraform.tfvars.example` to `terraform.tfvars`, fill in values, run `terraform init && terraform apply`. All modules are already written.
+If the client wants to adopt Terraform later: copy `infra/envs/prod/terraform.tfvars.example` to `terraform.tfvars`, fill in values, run `terraform init && terraform apply`. The AppsFlyer modules are written; MoEngage resources still need to be added to the modules (or provisioned via gcloud) as noted above.
 
 ---
 

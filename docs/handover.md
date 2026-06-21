@@ -29,19 +29,21 @@ export PROJECT=YOUR_CLIENT_GCP_PROJECT_ID
 
 Then run sections 1–10 of `docs/gcp-setup.md` in order:
 1. Enable APIs
-2. Create service accounts
+2. Create service accounts (sa-extract-appsflyer, sa-extract-moengage, sa-dbt, sa-workflows, sa-scheduler)
 3. Grant IAM roles
-4. Create secrets (AppsFlyer token  -  see note below)
+4. Create secrets (AppsFlyer token + MoEngage credentials  -  see note below)
 5. Create Artifact Registry repository
-6. Create BigQuery datasets
+6. Create BigQuery datasets (6 total: appsflyer + moengage, each raw/staging/mart)
 7. Build and push container images
-8. Create Cloud Run Jobs (extract-appsflyer, dbt-transform)
+8. Create Cloud Run Jobs (extract-appsflyer, extract-moengage, dbt-transform)
 9. Deploy Cloud Workflows (pipeline)
 10. Create Cloud Scheduler jobs (twice-daily trigger)
 
 > Steps 7-10 create the runtime resources (jobs, workflow, scheduler) once. After this, Cloud Build (Steps 2-5 below) only rolls new images onto the existing jobs on each git push  -  it does not re-create them.
 
-> **Secret note:** The consultant never needs to see the production AppsFlyer token. The client's admin retrieves the token directly from the AppsFlyer dashboard (Configuration > API Token v3) and adds it to Secret Manager themselves.
+> **Secret note:** The consultant never needs to see the production secrets. The client's admin retrieves them directly from each vendor and adds them to Secret Manager themselves:
+> - **AppsFlyer:** token from the AppsFlyer dashboard (Configuration > API Token v3) into secret `appsflyer-api-token`.
+> - **MoEngage:** workspace ID + API key from the MoEngage dashboard (Settings > APIs) into secret `moengage-api-creds`, formatted as `WORKSPACE_ID:API_KEY` (colon-delimited, no spaces).
 
 ---
 

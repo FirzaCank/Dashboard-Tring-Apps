@@ -9,7 +9,7 @@ terraform {
   # Backend: use GCS bucket for state in real setup.
   # For initial bootstrap, local state is fine.
   # backend "gcs" {
-  #   bucket = "tring-tf-state-dev"
+  #   bucket = "YOUR_TF_STATE_BUCKET"
   #   prefix = "terraform/state"
   # }
 }

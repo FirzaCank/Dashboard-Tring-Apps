@@ -1,6 +1,6 @@
 -- Mart: push notification metrics (Group A). Grain: campaign x platform x date window.
 -- impression used as open proxy (push has no native open event).
--- Full refresh each run; partitioned by _extract_from, clustered by platform x channel.
+-- Full refresh each run; partitioned by stats_date_from, clustered by platform x channel.
 
 select
     s.campaign_id,

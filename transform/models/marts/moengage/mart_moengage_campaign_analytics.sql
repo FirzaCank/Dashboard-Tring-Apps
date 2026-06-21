@@ -1,7 +1,7 @@
 -- Mart: campaign analytics (Group E). Grain: campaign x platform x date window.
 -- Adds campaign metadata (name, tags) to the push stats.
 -- Conversion empty unless a goal is configured per campaign (kept as null, not zero).
--- Full refresh each run; partitioned by _extract_from, clustered by platform x channel.
+-- Full refresh each run; partitioned by stats_date_from, clustered by platform x channel.
 
 select
     s.campaign_id,
