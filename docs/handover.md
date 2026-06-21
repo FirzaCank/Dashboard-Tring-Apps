@@ -127,6 +127,10 @@ gcloud builds repositories create tring-pipeline-repo \
 
 The trigger tells Cloud Build: "every time someone pushes code to the `main` branch, run the deploy script automatically."
 
+> **One GCP project (prod only)?** Create only the trigger below (`deploy-prod-on-push`). The repo also contains `cloudbuild/deploy-dev.yaml` for teams with a separate dev project - you can ignore it. One project = one trigger = one `main` branch = done.
+
+> **Two GCP projects (dev + prod)?** Create two triggers: one pointing `cloudbuild/deploy-dev.yaml` on a `dev` branch (with `_PROJECT` = your dev project ID), and one pointing `cloudbuild/deploy-prod.yaml` on `main` (with `_PROJECT` = your prod project ID). Each project needs its own GCP provisioning (Step 1) and its own service accounts.
+
 **Via GCP Console (recommended):**
 
 1. In Cloud Build, click **Triggers** in the left menu.

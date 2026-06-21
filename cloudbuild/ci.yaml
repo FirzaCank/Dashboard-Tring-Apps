@@ -32,17 +32,9 @@ steps:
     env:
       - "GCP_PROJECT=ci-placeholder"
 
-  - name: "hashicorp/terraform:1.5"
-    id: terraform-validate-dev
-    entrypoint: terraform
-    args: ["validate"]
-    dir: infra/envs/dev
-
-  - name: "hashicorp/terraform:1.5"
-    id: terraform-validate-prod
-    entrypoint: terraform
-    args: ["validate"]
-    dir: infra/envs/prod
+# No Terraform step: infra/ is reference-only and not part of the deploy path
+# (provisioning is via gcloud, see docs/gcp-setup.md). If the client adopts
+# Terraform later, add a `terraform validate` step here.
 
 options:
   logging: CLOUD_LOGGING_ONLY

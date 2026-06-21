@@ -130,7 +130,7 @@ Reference date for row counts: **2026-06-13 to 2026-06-14** (2-day window, valid
 - **BQ table:** `appsflyer_raw.raw_in_app_events`
 - **Volume:** Android ~100,000-200,000+/day, iOS ~40,000-85,000/day
 - **81 source columns:** Same schema as `raw_installs`  -  `Event Name` contains the in-app event name (e.g. `SplashScreen_Loading`, `Login_PreLogin_Masuk`, `BeliTE_TransaksiSukses`)
-- **Key column:** `Event Name`  -  used by dbt seed `event_mapping.csv` to categorize into `open_app`, `login`, `purchase`, `registration`
+- **Key column:** `Event Name`  -  used by dbt seed `appsflyer_event_mapping.csv` to categorize into `open_app`, `login`, `purchase`, `registrations`
 
 ---
 

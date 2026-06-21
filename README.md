@@ -65,6 +65,10 @@ tring-data-pipeline/
 
 > **Prod deployment:** Code is pushed to the client's GitLab (VPN-gated). Cloud Build triggers on the client's GCP pick it up and deploy. No direct prod GCP access required from the consultant side.
 
+## Documentation
+
+New to this project? Start with **[docs/index.md](docs/index.md)** - it lists every document, the order to read them in, and a glossary of all the terms (Cloud Run Job, dbt, WIB, T-1, backfill, etc.).
+
 ## GCP Setup
 
 See [docs/gcp-setup.md](docs/gcp-setup.md) for full provisioning steps: APIs, service accounts, IAM roles, secrets, Artifact Registry, BigQuery datasets, and Cloud Run Job creation.

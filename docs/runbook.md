@@ -1,5 +1,7 @@
 # Runbook: Dashboard Monitoring & AI Insight  -  Data Pipeline
 
+> **Before you run any command here:** set your project once in the terminal: `export PROJECT=your-gcp-project-id`. Every command below uses `$PROJECT`. New to the terms used here (Workflow, Cloud Run Job, backfill, T-1)? See [index.md](index.md) for a glossary.
+
 > **Schedule note:** Pipeline runs automatically twice daily via Cloud Scheduler (08:00 and 20:00 WIB). This schedule is a default assumption from the TSD - the client has not confirmed a final schedule. To update: `gcloud scheduler jobs update http pipeline-trigger-morning --schedule="0 H * * *" --location=asia-southeast2 --project=$PROJECT` (and same for `pipeline-trigger-afternoon`).
 
 ## 1. Triggering a manual pipeline run
@@ -31,7 +33,7 @@ Successful run output:
 ```
 state: SUCCEEDED
 result: '"Pipeline complete for 2026-06-19 to 2026-06-19"'
-duration: ~90-300s
+duration: ~7 minutes (verified; varies with data volume)
 ```
 
 Failed run output:

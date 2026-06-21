@@ -137,7 +137,7 @@ What `make test` does: runs pytest and dbt parse in sequence. Fails fast if eith
 
 ## 6. Integration Tests (requires GCP dev access)
 
-These run against the real your dev GCP project. Only run after local tests pass.
+These run against a real GCP dev project. Only run after local tests pass.
 
 ### Run the extractor locally against dev BQ
 
@@ -188,6 +188,7 @@ The `cloudbuild/ci.yaml` trigger runs automatically on every pull request:
 1. `ruff check` + `ruff format --check`
 2. `pytest`
 3. `dbt parse`
-4. `terraform validate` (dev and prod)
 
 A PR cannot merge if any of these fail.
+
+> CI does not validate Terraform. Terraform in `infra/` is reference-only and is not part of the deploy path (provisioning is done via `gcloud`, see `gcp-setup.md`). If the client later adopts Terraform, add a `terraform validate` step here.
