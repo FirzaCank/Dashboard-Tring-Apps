@@ -47,12 +47,23 @@ Then run sections 1–10 of `docs/gcp-setup.md` in order:
 
 ## Step 2: Grant Cloud Build Service Account Permissions
 
-Cloud Build runs as the default Cloud Build service account. Grant it deploy permissions:
+Cloud Build runs automatically using a service account that GCP creates for you. You need to give it permission to deploy to Cloud Run and push images.
+
+**First, find your Cloud Build service account email:**
 
 ```bash
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT --format="value(projectNumber)")
 CB_SA="${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com"
 
+# Print it to confirm before running the next block
+echo $CB_SA
+```
+
+You should see something like: `123456789@cloudbuild.gserviceaccount.com`
+
+**Grant deploy permissions:**
+
+```bash
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${CB_SA}" --role="roles/run.developer"
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${CB_SA}" --role="roles/artifactregistry.writer"
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${CB_SA}" --role="roles/iam.serviceAccountUser"
@@ -60,55 +71,132 @@ gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${CB_SA
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${CB_SA}" --role="roles/bigquery.dataEditor"
 ```
 
+Each command should print `Updated IAM policy for project [...]`. If you see an error about permissions, make sure your account has `roles/resourcemanager.projectIamAdmin` on the project.
+
 ---
 
 ## Step 3: Connect GitLab to Cloud Build
 
-1. In GCP Console → **Cloud Build** → **Triggers** → **Connect Repository**
-2. Choose **GitLab** as source provider
-3. Authenticate with the client's GitLab account (VPN may be required)
-4. Select the repository containing this pipeline code
+This step links your GitLab repository to GCP so that Cloud Build can read the code and trigger builds automatically.
 
-> If the GitLab instance is self-hosted (on-premise/VPN), use **Cloud Build Private Pools** or set up a **GitLab webhook** pointing to a Cloud Build trigger URL instead of the native connector.
+> **VPN note:** If your GitLab is on a company network (self-hosted / on-premise), you need to be connected to the VPN before doing this step. Cloud Build needs to reach GitLab from the internet.
+
+**Option A: GCP Console (recommended for first time)**
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) and make sure the correct project is selected (top bar, next to "Google Cloud" logo).
+2. In the left sidebar, search for **Cloud Build** and click it.
+3. Click **Triggers** in the left menu.
+4. Click **Connect Repository** (blue button, top right).
+5. Under "Select source", choose **GitLab**.
+6. Click **Continue**.
+7. If prompted, authenticate with your GitLab account (username + password, or SSO if your company uses it).
+8. Select the repository that contains this pipeline code.
+9. Check the box to confirm you understand Cloud Build will read the repo.
+10. Click **Connect**.
+
+You should see the repo listed under "Connected repositories". If connection fails, check:
+- VPN is active (if GitLab is self-hosted)
+- Your GitLab account has at least Reporter access to the repo
+
+**Option B: gcloud CLI**
+
+If your GitLab is public or already authenticated:
+
+```bash
+# Replace GITLAB_HOST with your GitLab domain, e.g. gitlab.com or gitlab.yourcompany.com
+gcloud builds connections create gitlab tring-gitlab-connection \
+  --host-uri="https://GITLAB_HOST" \
+  --project=$PROJECT \
+  --region=asia-southeast2
+```
+
+Then link the specific repo:
+
+```bash
+# Replace GITLAB_HOST and GITLAB_REPO_PATH (e.g. myorg/tring-data-pipeline)
+gcloud builds repositories create tring-pipeline-repo \
+  --connection=tring-gitlab-connection \
+  --remote-uri="https://GITLAB_HOST/GITLAB_REPO_PATH.git" \
+  --project=$PROJECT \
+  --region=asia-southeast2
+```
 
 ---
 
 ## Step 4: Create Cloud Build Trigger
 
-Create a trigger for the `main` branch using the prod config:
+The trigger tells Cloud Build: "every time someone pushes code to the `main` branch, run the deploy script automatically."
+
+**Via GCP Console (recommended):**
+
+1. In Cloud Build, click **Triggers** in the left menu.
+2. Click **Create Trigger**.
+3. Fill in:
+   - **Name:** `deploy-prod-on-push`
+   - **Region:** `asia-southeast2`
+   - **Event:** Push to a branch
+   - **Source (1st gen):** Select the repository you connected in Step 3
+   - **Branch:** `^main$` (exactly this, including the `^` and `$`)
+   - **Configuration:** Cloud Build configuration file (yaml or json)
+   - **Cloud Build configuration file location:** `cloudbuild/deploy-prod.yaml`
+4. Scroll down to **Substitution variables**. Click **Add variable** and add:
+   - Variable: `_PROJECT`
+   - Value: your GCP project ID (same as `$PROJECT`)
+5. Click **Save**.
+
+**Via gcloud CLI (alternative):**
 
 ```bash
 gcloud builds triggers create gitlab \
   --name="deploy-prod-on-push" \
+  --region=asia-southeast2 \
+  --repository="projects/${PROJECT}/locations/asia-southeast2/connections/tring-gitlab-connection/repositories/tring-pipeline-repo" \
   --branch-pattern="^main$" \
   --build-config="cloudbuild/deploy-prod.yaml" \
   --substitutions="_PROJECT=${PROJECT}" \
   --project=$PROJECT
 ```
 
-Or via GCP Console:
-- **Event:** Push to branch `main`
-- **Config:** `cloudbuild/deploy-prod.yaml`
-- **Substitutions:** `_PROJECT` = `YOUR_CLIENT_GCP_PROJECT_ID`
+> Replace `tring-gitlab-connection` and `tring-pipeline-repo` with the names you used in Step 3 if different.
+
+**Verify the trigger was created:**
+
+```bash
+gcloud builds triggers list --project=$PROJECT --region=asia-southeast2
+```
+
+You should see `deploy-prod-on-push` in the list with `STATUS: ENABLED`.
 
 ---
 
 ## Step 5: First Deployment
 
-Trigger the first build manually to verify everything works:
+Run the first build manually to confirm everything works before relying on automatic triggers.
 
 ```bash
-gcloud builds submit --config=cloudbuild/deploy-prod.yaml \
+gcloud builds submit . \
+  --config=cloudbuild/deploy-prod.yaml \
   --substitutions="_PROJECT=${PROJECT}" \
   --project=$PROJECT
 ```
 
-This will:
-1. Build ingestion image and push to Artifact Registry
-2. Build dbt image and push to Artifact Registry
-3. Roll the new images onto the existing Cloud Run Jobs (`gcloud run jobs update`)
+This command uploads the code to Cloud Build and runs the deploy script. It will:
+1. Build the ingestion container image and push it to Artifact Registry
+2. Build the dbt container image and push it to Artifact Registry
+3. Update the existing Cloud Run Jobs (`extract-appsflyer` and `dbt-transform`) to use the new images
 
-> The jobs, workflow, and scheduler already exist from Step 1 (gcp-setup.md steps 8-10). Cloud Build does not create infrastructure  -  it only updates the job images.
+**Watch the build progress:**
+
+The command will print a build URL, for example:
+```
+https://console.cloud.google.com/cloud-build/builds/abc123?project=YOUR_PROJECT
+```
+
+Open that URL in your browser to see live logs. The build takes about 3-5 minutes.
+
+**Expected result:** Build status `SUCCESS`. If it shows `FAILURE`, check the logs at that URL - the error message will say exactly which step failed.
+
+> **What Cloud Build does NOT do:** It does not create or delete any GCP resources (datasets, jobs, scheduler, etc.). Those were already created in Step 1. Cloud Build only updates the container images on the existing jobs.
 
 ---
 
