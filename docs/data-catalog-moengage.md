@@ -151,6 +151,28 @@ All meta columns are injected by the ingestion layer at load time.
 
 ---
 
+## Dashboard Requirement Coverage
+
+The original dashboard requirement defines five metric groups (A-E) for MoEngage. Groups A and E are fully built using the public API. Groups B, C, D require a different API access path and are not built in v1.
+
+| Group | Metrics required | Status | Mart table |
+|---|---|---|---|
+| A - Push Notification | Sent, Opened (proxy), Clicked, CTR, Conversion | BUILT | `mart_moengage_push` |
+| E - Campaign Analytics | Target User, Sent, Open Rate, Click Rate, Conversion | BUILT | `mart_moengage_campaign_analytics` |
+| B - User Engagement | MAU, DAU, Avg Session Duration | NOT BUILT - dashboard analytics API (JWT) only, not the public API |  - |
+| B - MTU (Monthly Transacting User) | MTU | NOT AVAILABLE from MoEngage - financial metric, source from AppsFlyer or internal transaction DB | - |
+| C - Funnel | Install to Register, Register to Login, Login to Transaction | NOT BUILT - dashboard analytics API only; alternatively derivable from AppsFlyer in-app events | - |
+| D - Cohort/Retention | D1, D7, D30 Retention | NOT BUILT - dashboard analytics API only; alternatively derivable from AppsFlyer (same approach as AppsFlyer retention mart) | - |
+
+**Notes on partially covered metrics:**
+- **Opened / Open Rate:** No native open event for push. `impression` (notification shown on screen) is used as the proxy. Labeled `open_proxy` in marts.
+- **Conversion:** `conversion_goal_stats` is empty unless a conversion goal is configured per campaign in the MoEngage dashboard. Treated as null in marts, not zero.
+- **Delivered:** Not exposed by the MoEngage push stats API. Dropped from all mart tables.
+
+**Path to Groups B, C, D:** Ask the MoEngage CSM whether the workspace plan includes an official analytics access path (OAuth/Data API) or event-level export (S3/Streams/Data Warehouse). See TSD §6.3 for full options and cost notes. Do not use the dashboard UI JWT token (session-based, ~2h expiry, fragile, unsupported in production).
+
+---
+
 ## Known Behaviors and Gotchas
 
 | Behavior | Detail |
