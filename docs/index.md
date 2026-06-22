@@ -9,9 +9,10 @@ If you are new to this project, read in this order:
 3. **[handover.md](handover.md)** - how to connect the code repository to GCP so deployments happen automatically. This is the production onboarding guide.
 4. **[runbook.md](runbook.md)** - day-to-day operations: how to run the pipeline manually, check if it worked, backfill old data, rotate the API token.
 5. **[testing.md](testing.md)** - how to test code changes before they reach GCP.
-6. **[data-catalog-appsflyer.md](data-catalog-appsflyer.md)** - reference for the AppsFlyer data: tables, columns, row counts, rate limits. Look things up here when you need detail; you do not need to read it top to bottom.
-7. **[data-catalog-moengage.md](data-catalog-moengage.md)** - reference for the MoEngage data: endpoints, columns, chunking limits, known metric behaviors (CTR scale, ALL_PLATFORMS, impression as open proxy). Look things up here when you need detail.
-8. **[data-catalog-play-console.md](data-catalog-play-console.md)** - reference for the Play Console data: metric sets, review fields, API endpoints, GCP infra setup. Look things up here when you need detail.
+6. **[adding-endpoints.md](adding-endpoints.md)** - reference for adding a new endpoint to an existing source. Read only when you are extending a source, not part of the first read-through.
+7. **[data-catalog-appsflyer.md](data-catalog-appsflyer.md)** - reference for the AppsFlyer data: tables, columns, row counts, rate limits. Look things up here when you need detail; you do not need to read it top to bottom.
+8. **[data-catalog-moengage.md](data-catalog-moengage.md)** - reference for the MoEngage data: endpoints, columns, chunking limits, known metric behaviors (CTR scale, ALL_PLATFORMS, impression as open proxy). Look things up here when you need detail.
+9. **[data-catalog-play-console.md](data-catalog-play-console.md)** - reference for the Play Console data: metric sets, review fields, API endpoints, GCP infra setup. Look things up here when you need detail.
 
 ---
 

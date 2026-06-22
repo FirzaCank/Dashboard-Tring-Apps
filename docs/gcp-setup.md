@@ -47,6 +47,14 @@ gcloud iam service-accounts create sa-scheduler --display-name="Cloud Scheduler 
 
 > **Adding a new source (App Store Connect):** create a dedicated SA per source. Grant only the roles that source needs.
 
+> **Why one SA per source (not one shared SA)?**
+> Three reasons:
+> 1. **Least privilege.** Each SA only has `secretAccessor` on its own secret. A shared SA would have access to all secrets - one compromised job exposes all API credentials.
+> 2. **Blast radius.** A misconfigured or revoked shared SA kills the whole pipeline. Per-source SA means one source goes down, the rest keep running.
+> 3. **Cloud Run is keyless.** Jobs run *as* their attached SA via Application Default Credentials - no JSON key file needed on disk. Switching to a shared SA key file (e.g. a downloaded `.json`) is a downgrade: key rotation is manual, the file can be copied or leaked, and it bypasses GCP's native identity model.
+>
+> Play Console is the one exception where a key file is unavoidable: the API belongs to a different GCP project (`pgd-prd-digital-rating-tring`), so there is no way to attach that project's SA as a Cloud Run identity. The key is stored in Secret Manager (not on disk or in code) to limit exposure.
+
 ---
 
 ## 3. Grant IAM Roles
