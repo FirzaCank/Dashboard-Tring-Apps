@@ -3,6 +3,8 @@
 -- into a single wide table for dashboard use.
 -- Slow start rate excluded (has additional start_type dimension; use stg directly for that).
 -- All rate columns are 0-1 fractions from Play Console.
+-- Confidence interval bounds are included only for crash rate and ANR rate
+-- (the only two metric sets that return CI data from the API; verified live).
 -- Full refresh each run; partitioned by date, clustered by version_code.
 
 with crash as (
@@ -34,8 +36,6 @@ wakelock as (
         date,
         version_code,
         stuck_bg_wakelock_rate,
-        stuck_bg_wakelock_rate_ci_lower,
-        stuck_bg_wakelock_rate_ci_upper,
         stuck_bg_wakelock_rate_7d,
         stuck_bg_wakelock_rate_28d
     from {{ ref('stg_play_console_stuck_bg_wakelock_rate') }}
@@ -46,8 +46,6 @@ wakeup as (
         date,
         version_code,
         excessive_wakeup_rate,
-        excessive_wakeup_rate_ci_lower,
-        excessive_wakeup_rate_ci_upper,
         excessive_wakeup_rate_7d,
         excessive_wakeup_rate_28d
     from {{ ref('stg_play_console_excessive_wakeup_rate') }}
@@ -72,14 +70,10 @@ joined as (
         anr.anr_rate_28d,
 
         wakelock.stuck_bg_wakelock_rate,
-        wakelock.stuck_bg_wakelock_rate_ci_lower,
-        wakelock.stuck_bg_wakelock_rate_ci_upper,
         wakelock.stuck_bg_wakelock_rate_7d,
         wakelock.stuck_bg_wakelock_rate_28d,
 
         wakeup.excessive_wakeup_rate,
-        wakeup.excessive_wakeup_rate_ci_lower,
-        wakeup.excessive_wakeup_rate_ci_upper,
         wakeup.excessive_wakeup_rate_7d,
         wakeup.excessive_wakeup_rate_28d
 
