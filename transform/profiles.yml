@@ -1,3 +1,8 @@
+# method: oauth means dbt uses Application Default Credentials, NOT an interactive login.
+# In the dbt-transform Cloud Run Job this resolves to the job's runtime service account
+# (sa-dbt), which has bigquery.dataEditor + jobUser. No key file and no `gcloud auth login`
+# are needed inside the container. Locally, `oauth` uses whatever
+# `gcloud auth application-default login` set up for your user.
 tring_transform:
   target: dev
   outputs:
