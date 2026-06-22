@@ -1,0 +1,162 @@
+version: 2
+
+models:
+  - name: stg_play_console_crash_rate
+    description: "Typed, deduped crash rate. One row per date x version_code (latest ingest)."
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: version_code
+        data_tests:
+          - not_null
+      - name: crash_rate
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+              config:
+                severity: warn
+      - name: crash_rate_7d
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+              config:
+                severity: warn
+      - name: crash_rate_28d
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+              config:
+                severity: warn
+
+  - name: stg_play_console_anr_rate
+    description: "Typed, deduped ANR rate. One row per date x version_code (latest ingest)."
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: version_code
+        data_tests:
+          - not_null
+      - name: anr_rate
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+              config:
+                severity: warn
+
+  - name: stg_play_console_stuck_bg_wakelock_rate
+    description: "Typed, deduped stuck background wakelock rate. One row per date x version_code (latest ingest)."
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: version_code
+        data_tests:
+          - not_null
+      - name: stuck_bg_wakelock_rate
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+              config:
+                severity: warn
+
+  - name: stg_play_console_excessive_wakeup_rate
+    description: "Typed, deduped excessive wakeup rate. One row per date x version_code (latest ingest)."
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: version_code
+        data_tests:
+          - not_null
+      - name: excessive_wakeup_rate
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+              config:
+                severity: warn
+
+  - name: stg_play_console_error_count
+    description: "Typed, deduped error/ANR count. One row per date x report_type x version_code (latest ingest)."
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: report_type
+        data_tests:
+          - not_null
+      - name: version_code
+        data_tests:
+          - not_null
+      - name: error_report_count
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+              config:
+                severity: warn
+      - name: distinct_users
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              inclusive: true
+              config:
+                severity: warn
+
+  - name: stg_play_console_slow_start_rate
+    description: "Typed, deduped slow start rate. One row per date x version_code x start_type (latest ingest)."
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: version_code
+        data_tests:
+          - not_null
+      - name: start_type
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["COLD", "WARM", "HOT"]
+              config:
+                severity: warn
+      - name: slow_start_rate
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+              config:
+                severity: warn
+
+  - name: stg_play_console_reviews
+    description: "Typed, deduped user reviews. One row per review_id (latest ingest). developer_reply fields null when no reply posted."
+    columns:
+      - name: review_id
+        data_tests:
+          - not_null
+          - unique
+      - name: star_rating
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 5
+              inclusive: true
+              config:
+                severity: warn
+      - name: last_modified_at
+        data_tests:
+          - not_null

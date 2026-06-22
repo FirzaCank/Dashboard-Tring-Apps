@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: mart_play_console_app_health
+    description: "App health metrics by date x version_code. Joins crash rate, ANR rate, excessive wakeup rate, and stuck bg wakelock rate into one wide table. All rate columns are 0-1 fractions."
+    columns:
+      - name: date
+        data_tests:
+          - not_null
+      - name: version_code
+        data_tests:
+          - not_null
+      - name: crash_rate
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+              config:
+                severity: warn
+      - name: anr_rate
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+              inclusive: true
+              config:
+                severity: warn
+
+  - name: mart_play_console_reviews
+    description: "User reviews with reply status flags. Grain: one row per review_id. Partitioned by review_date, clustered by star_rating."
+    columns:
+      - name: review_id
+        data_tests:
+          - not_null
+          - unique
+      - name: star_rating
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 5
+              inclusive: true
+              config:
+                severity: warn
+      - name: review_date
+        data_tests:
+          - not_null
