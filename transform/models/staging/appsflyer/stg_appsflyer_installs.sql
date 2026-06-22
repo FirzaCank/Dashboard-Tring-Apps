@@ -27,8 +27,7 @@ typed as (
         _ingested_at,
         _run_id,
         _extract_from,
-        _extract_to,
-        _schema_flag
+        _extract_to
     from source
 ),
 

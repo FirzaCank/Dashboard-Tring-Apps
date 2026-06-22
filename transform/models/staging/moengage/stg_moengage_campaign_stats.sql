@@ -33,8 +33,7 @@ typed as (
         _source,
         _run_id,
         safe_cast(_extract_from as date)        as _extract_from,
-        safe_cast(_extract_to as date)          as _extract_to,
-        _schema_flag
+        safe_cast(_extract_to as date)          as _extract_to
     from source
 ),
 

@@ -23,7 +23,6 @@ METADATA_COLUMNS = [
     "_run_id",
     "_extract_from",
     "_extract_to",
-    "_schema_flag",
 ]
 
 
@@ -37,7 +36,6 @@ def _build_schema(source_columns: list[str]) -> list[bigquery.SchemaField]:
         bigquery.SchemaField("_run_id", "STRING"),
         bigquery.SchemaField("_extract_from", "DATE"),
         bigquery.SchemaField("_extract_to", "DATE"),
-        bigquery.SchemaField("_schema_flag", "STRING"),
     ]
     return fields
 
@@ -51,7 +49,6 @@ def load_csv_to_raw(
     platform: str,
     date_from: str,
     date_to: str,
-    expected_columns: list[str] | None = None,
     project_id: str = GCP_PROJECT,
 ) -> int:
     # append-only. staging dedupes by latest _ingested_at per natural key, so re-runs
@@ -72,17 +69,6 @@ def load_csv_to_raw(
     reader = csv.DictReader(io.StringIO(csv_content))
     source_columns = reader.fieldnames or []
 
-    schema_flag = ""
-    if expected_columns:
-        missing = set(expected_columns) - set(source_columns)
-        extra = set(source_columns) - set(expected_columns)
-        if missing or extra:
-            schema_flag = f"missing={sorted(missing)};extra={sorted(extra)}"
-            logger.warning(
-                "Schema drift detected",
-                extra={"table": table_id, "schema_flag": schema_flag},
-            )
-
     rows = []
     for row in reader:
         row["_ingested_at"] = ingested_at
@@ -92,7 +78,6 @@ def load_csv_to_raw(
         row["_run_id"] = run_id
         row["_extract_from"] = date_from
         row["_extract_to"] = date_to
-        row["_schema_flag"] = schema_flag
         rows.append(row)
 
     if not rows:
@@ -120,11 +105,13 @@ def load_csv_to_raw(
     # list size. 5k chunks keep each call small while reusing the same job_config.
     CHUNK_SIZE = 5_000
     for i in range(0, len(rows), CHUNK_SIZE):
-        client.load_table_from_json(rows[i : i + CHUNK_SIZE], table_ref, job_config=job_config).result()
+        client.load_table_from_json(
+            rows[i : i + CHUNK_SIZE], table_ref, job_config=job_config
+        ).result()
 
     logger.info(
         f"loaded {len(rows)} rows to {table_id}",
-        extra={"table": table_ref, "rows": len(rows), "schema_flag": schema_flag or "ok"},
+        extra={"table": table_ref, "rows": len(rows)},
     )
     return len(rows)
 
@@ -164,7 +151,6 @@ def load_json_rows_to_raw(
         r["_run_id"] = run_id
         r["_extract_from"] = date_from
         r["_extract_to"] = date_to
-        r["_schema_flag"] = ""
         enriched.append(r)
 
     table_ref = f"{project_id}.{dataset_id}.{table_id}"
@@ -182,7 +168,9 @@ def load_json_rows_to_raw(
 
     CHUNK_SIZE = 5_000
     for i in range(0, len(enriched), CHUNK_SIZE):
-        client.load_table_from_json(enriched[i : i + CHUNK_SIZE], table_ref, job_config=job_config).result()
+        client.load_table_from_json(
+            enriched[i : i + CHUNK_SIZE], table_ref, job_config=job_config
+        ).result()
 
     logger.info(
         f"loaded {len(enriched)} rows to {table_id}",

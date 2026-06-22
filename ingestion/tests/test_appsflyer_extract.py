@@ -100,68 +100,6 @@ class TestBqLoader:
         assert "_run_id" in row
         assert "_ingested_at" in row
 
-    def test_schema_flag_set_on_drift(self):
-        from tring_ingest.common.bq_loader import load_csv_to_raw
-
-        loaded_rows = []
-
-        def capture_load(rows, *args, **kwargs):
-            loaded_rows.extend(rows)
-            job = MagicMock()
-            job.result.return_value = None
-            return job
-
-        with patch("tring_ingest.common.bq_loader.bigquery.Client") as mock_client_cls:
-            mock_client = MagicMock()
-            mock_client_cls.return_value = mock_client
-            mock_client.load_table_from_json.side_effect = capture_load
-
-            load_csv_to_raw(
-                csv_content="Install Time,Media Source\n2026-06-13 10:00:00,organic\n",
-                dataset_id="appsflyer_raw",
-                table_id="raw_installs",
-                source="appsflyer",
-                app_id="com.pegadaiandigital",
-                platform="android",
-                date_from="2026-06-13",
-                date_to="2026-06-14",
-                expected_columns=["Install Time", "Media Source", "Campaign"],
-                project_id="test-project",
-            )
-
-        assert loaded_rows[0]["_schema_flag"] != ""
-
-    def test_schema_flag_empty_when_no_drift(self):
-        from tring_ingest.common.bq_loader import load_csv_to_raw
-
-        loaded_rows = []
-
-        def capture_load(rows, *args, **kwargs):
-            loaded_rows.extend(rows)
-            job = MagicMock()
-            job.result.return_value = None
-            return job
-
-        with patch("tring_ingest.common.bq_loader.bigquery.Client") as mock_client_cls:
-            mock_client = MagicMock()
-            mock_client_cls.return_value = mock_client
-            mock_client.load_table_from_json.side_effect = capture_load
-
-            load_csv_to_raw(
-                csv_content="Install Time,Media Source\n2026-06-13 10:00:00,organic\n",
-                dataset_id="appsflyer_raw",
-                table_id="raw_installs",
-                source="appsflyer",
-                app_id="com.pegadaiandigital",
-                platform="android",
-                date_from="2026-06-13",
-                date_to="2026-06-14",
-                expected_columns=["Install Time", "Media Source"],
-                project_id="test-project",
-            )
-
-        assert loaded_rows[0]["_schema_flag"] == ""
-
 
 class TestExtractRun:
     def test_run_calls_8_pulls(self):
