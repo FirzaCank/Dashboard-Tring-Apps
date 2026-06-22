@@ -34,3 +34,11 @@ MOENGAGE_SECRET_NAME = os.environ.get("MOENGAGE_SECRET_NAME", "moengage-api-cred
 # confirmed with live test; client to confirm final values before go-live
 MOENGAGE_ATTRIBUTION_TYPE = os.environ.get("MOENGAGE_ATTRIBUTION_TYPE", "VIEW_THROUGH")
 MOENGAGE_METRIC_TYPE = os.environ.get("MOENGAGE_METRIC_TYPE", "TOTAL")
+
+# Play Console
+BQ_DATASET_RAW_PLAY_CONSOLE = os.environ.get("BQ_DATASET_RAW_PLAY_CONSOLE", "play_raw")
+BQ_DATASET_STAGING_PLAY_CONSOLE = "play_staging"
+BQ_DATASET_MART_PLAY_CONSOLE = "play_mart"
+
+# SA JSON stored in Secret Manager as a raw JSON string
+PLAY_CONSOLE_SECRET_NAME = os.environ.get("PLAY_CONSOLE_SECRET_NAME", "play-console-sa-key")

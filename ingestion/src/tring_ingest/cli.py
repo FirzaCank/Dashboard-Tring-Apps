@@ -37,5 +37,9 @@ def main(argv=None):
         from tring_ingest.sources.moengage.extract import run
 
         run(date_from=args.date_from, date_to=args.date_to)
+    elif args.source == "play_console":
+        from tring_ingest.sources.play_console.extract import run
+
+        run(date_from=args.date_from, date_to=args.date_to)
     else:
         raise NotImplementedError(f"{args.source} source not yet implemented")

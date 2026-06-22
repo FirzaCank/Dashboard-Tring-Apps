@@ -153,7 +153,7 @@ def load_json_rows_to_raw(
     with contextlib.suppress(Conflict):
         client.create_dataset(dataset_ref, exists_ok=True)
 
-    source_columns = sorted({k for row in rows for k in row.keys()})
+    source_columns = sorted({k for row in rows for k in row})
     enriched = []
     for row in rows:
         r = {col: str(row.get(col, "")) for col in source_columns}
