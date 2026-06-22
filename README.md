@@ -1,5 +1,7 @@
 # Dashboard Monitoring & AI Insight  -  Data Pipeline
 
+> **New to this project?** Start with **[docs/index.md](docs/index.md)** — it has the full reading order and glossary. Short version: `index.md` → `gcp-setup.md` → `handover.md` → `runbook.md`. Data catalogs are reference only; open them when you need specific details.
+
 Data pipeline for multi-source mobile app analytics. Live sources: AppsFlyer, MoEngage, Google Play Console. App Store Connect is scaffolded for the future but not in scope yet. Target: BigQuery + Looker Studio.
 
 ## Architecture
