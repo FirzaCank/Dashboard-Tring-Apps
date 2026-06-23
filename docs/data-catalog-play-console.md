@@ -61,6 +61,8 @@ The Cloud Run Job runtime SA (`sa-extract-play-console@$PROJECT.iam.gserviceacco
 
 All metric set endpoints are POST `.../{metricSetName}:query` with a JSON body specifying `timelineSpec`, `metrics`, and `dimensions`. Results are DAILY aggregated.
 
+> **API date boundary behavior:** The Reporting API uses an exclusive `endTime`. This means if you pass `--from 2026-06-18 --to 2026-06-18`, the API receives `startTime=2026-06-18` and `endTime=2026-06-19` (one day ahead). The extract code handles this automatically in `extract.py`. You do not need to adjust your date arguments.
+
 > **Adding another metric set:** append an entry to `METRIC_SETS` in `ingestion/src/tring_ingest/sources/play_console/endpoints.py`, then rebuild the image. Step by step in `docs/adding-endpoints.md` (section B).
 
 ### raw_crash_rate

@@ -273,7 +273,21 @@ AppsFlyer limits: `in_app_events` 12 calls/day/app, `installs` 24/day/app. When 
 
 ---
 
-## 10. Checking for failures and adding alerting
+## 10. Known behavior: Play Console Reporting API uses exclusive endTime
+
+The Play Developer Reporting API treats `endTime` as exclusive (not inclusive). The extract code automatically adds 1 day to your `--to` date before sending the request, so you never need to adjust your date arguments.
+
+If you see this error when running Play Console extract:
+
+```
+"The 'start_time' must be earlier than the 'end_time'"
+```
+
+It means `startTime` and `endTime` sent to the API are equal -- this should not happen with the current code. Check that you are running the latest version of `extract.py` (the fix was added in commit `4b56365`).
+
+---
+
+## 12. Checking for failures and adding alerting
 
 By default there is no automated alert (not provisioned in the initial
 handover). Failures surface as a `FAILED` Workflow execution. Check manually as
@@ -346,7 +360,7 @@ Common causes:
 
 ---
 
-## 11. Adding a new data source
+## 13. Adding a new data source
 
 **MoEngage** - fully implemented and E2E verified (2026-06-22: 599 campaigns, 4712 stats rows, exit(0), full pipeline SUCCEEDED). GCP infra provisioned (SA, secret, BQ datasets, Cloud Run Job `extract-moengage`). dbt models built (`stg_moengage_campaigns`, `stg_moengage_campaign_stats`, `mart_moengage_push`, `mart_moengage_campaign_analytics`). pipeline.yaml runs all three extracts (AppsFlyer + MoEngage + Play Console) in parallel; full-pipeline dbt run is PASS=140 WARN=0 ERROR=0.
 
@@ -411,7 +425,7 @@ gcloud run jobs create extract-moengage \
 
 ---
 
-## 12. Deploying a change
+## 14. Deploying a change
 
 ```bash
 # Build + push new image
@@ -444,7 +458,7 @@ gcloud run jobs update dbt-transform \
 
 ---
 
-## 13. Checking dbt model freshness
+## 15. Checking dbt model freshness
 
 ```bash
 cd transform
@@ -453,7 +467,7 @@ dbt source freshness --profiles-dir . --target dev
 
 ---
 
-## 14. Query cost optimization
+## 16. Query cost optimization
 
 BigQuery charges by the amount of data scanned per query (on-demand pricing: ~$5 per TB). All mart tables are partitioned and clustered to reduce scan size. This section explains how to use them correctly.
 
