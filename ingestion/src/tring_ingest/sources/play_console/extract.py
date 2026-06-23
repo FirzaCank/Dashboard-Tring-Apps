@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 from tring_ingest.common.bq_loader import load_json_rows_to_raw
 from tring_ingest.common.config import (
     BQ_DATASET_RAW_PLAY_CONSOLE,
@@ -56,7 +58,9 @@ def _pull_all_reviews(client: PlayConsoleClient) -> list[dict]:
 def run(date_from: str, date_to: str, sa_key_json: str | None = None) -> None:
     client = PlayConsoleClient(sa_key_json=sa_key_json)
     start = date_str_to_dict(date_from)
-    end = date_str_to_dict(date_to)
+    # Play Console Reporting API uses exclusive endTime, so we add 1 day
+    end_exclusive = date.fromisoformat(date_to) + timedelta(days=1)
+    end = date_str_to_dict(end_exclusive.isoformat())
 
     errors = []
     total_rows = 0
