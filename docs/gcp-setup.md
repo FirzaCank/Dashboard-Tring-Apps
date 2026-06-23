@@ -253,7 +253,7 @@ No Docker Desktop required. All builds run inside Cloud Build on GCP - nothing r
 
 There are two Cloud Build config files in `cloudbuild/`:
 - `build-push.yaml` - used here (Section 7). Builds both Docker images and pushes them to Artifact Registry. Does NOT deploy or touch Cloud Run Jobs.
-- `deploy-prod.yaml` - used by the automated CI/CD trigger (handover.md Steps 4-5). Builds images AND rolls them onto the existing Cloud Run Jobs. Used after the jobs are created.
+- `deploy-prod.yaml` - used by the automated CI/CD trigger (handover.md Steps 4-5). Builds images AND rolls them onto the existing Cloud Run Jobs. Used after the jobs are created. Note: `_ENV` substitution was removed from this file — do not pass `_ENV` when calling it manually. When running manually (no git trigger), `COMMIT_SHA` is empty so you must pass it explicitly: `--substitutions="_PROJECT=${PROJECT},COMMIT_SHA=latest"`.
 
 You use `build-push.yaml` here because the Cloud Run Jobs do not exist yet - they are created in Section 8 using these images.
 
@@ -469,7 +469,38 @@ gcloud scheduler jobs create http pipeline-trigger-afternoon \
 
 ---
 
-## 11. Failure Alerting (recommended, not provisioned by default)
+## 11. Run the Pipeline Once to Verify
+
+Run the pipeline manually to confirm the full setup works end-to-end.
+
+**Default run (pulls yesterday's data):**
+```bash
+gcloud workflows run pipeline --location=asia-southeast2 --project=$PROJECT
+```
+
+**Recommended for first run — use an explicit date range to verify with known data:**
+```bash
+gcloud workflows run pipeline \
+  --data='{"date_from":"2026-06-01","date_to":"2026-06-15"}' \
+  --location=asia-southeast2 --project=$PROJECT
+```
+
+A full run takes 6–10 minutes. Check the result:
+```bash
+gcloud workflows executions list pipeline --location=asia-southeast2 --project=$PROJECT --limit=5
+```
+
+`state: SUCCEEDED` means everything worked. `state: FAILED` — check logs:
+```bash
+gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name="extract-appsflyer"' \
+  --project=$PROJECT --limit=30 --order=desc --format="table(timestamp,textPayload)"
+```
+
+Replace `extract-appsflyer` with `extract-moengage`, `extract-play-console`, or `dbt-transform` to check the other jobs.
+
+---
+
+## 12. Failure Alerting (recommended, not provisioned by default)
 
 The pipeline does not notify anyone when a run fails out of the box. A `FAILED`
 run is only visible if someone checks `gcloud workflows executions list` or the
