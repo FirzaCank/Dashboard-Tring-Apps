@@ -35,7 +35,7 @@ TO ?= $(shell date -u +%Y-%m-%d)
 # -- Dev setup -----------------------------------------------------------------
 
 setup:
-	cd ingestion && uv sync
+	cd ingestion && uv sync --extra dev
 	cd ingestion && uv run pre-commit install
 
 # -- Lint ----------------------------------------------------------------------
