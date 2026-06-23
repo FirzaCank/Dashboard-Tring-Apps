@@ -166,6 +166,17 @@ The Play Console secret stores a service account key JSON. This is the one case 
 - **Your pipeline project** (`$PROJECT`) - where this secret lives.
 - **The Play Console source project** (`pgd-prd-digital-rating-tring`) - which owns the SA `dashboard-monitoring-aiinsight@pgd-prd-digital-rating-tring.iam.gserviceaccount.com`. That SA already has Play Developer Reporting API and Android Publisher API access granted via Google Play Console. You do not create a new SA and you do not touch the Play Console UI.
 
+> **Play Console access is tied to a specific SA email.** The SA `dashboard-monitoring-aiinsight@pgd-prd-digital-rating-tring.iam.gserviceaccount.com` has already been invited to Google Play Console for the app **Tring! by Pegadaian** (`com.pegadaiandigital`). If you ever need to use a different SA, you must invite it to Play Console first — generating a key and loading it into Secret Manager is not enough on its own.
+>
+> **To invite a new SA to Play Console:**
+> 1. Go to [play.google.com/console](https://play.google.com/console) and open the Tring! by Pegadaian app.
+> 2. Left menu → **Users and permissions**.
+> 3. Click **Invite new users**.
+> 4. Enter the new SA email address.
+> 5. Under **App permissions**, select `com.pegadaiandigital` and grant at minimum: **View app information and download bulk reports (read-only)**.
+> 6. Click **Send invitation** → **Apply**.
+> 7. Wait a few minutes for the permission to propagate before proceeding.
+
 **Step 1 - get the SA key JSON file.** You need a JSON key for `dashboard-monitoring-aiinsight` in `pgd-prd-digital-rating-tring`:
 
 - If you have IAM access to that project: GCP Console > IAM & Admin > Service Accounts > pick `dashboard-monitoring-aiinsight` > Keys > Add Key > Create new key > JSON. Download it to the repo root.
