@@ -165,6 +165,8 @@ make test
 
 What `make test` does: runs pytest and dbt parse in sequence. Fails fast if either fails.
 
+If pre-commit is installed (see section 9), it runs ruff automatically on every `git commit` so you do not need to run lint manually before committing.
+
 ---
 
 ## 6. Integration Tests (requires GCP dev access)
@@ -225,3 +227,61 @@ The `cloudbuild/ci.yaml` trigger runs automatically on every pull request:
 A PR cannot merge if any of these fail.
 
 > CI does not validate Terraform. Terraform in `infra/` is reference-only and is not part of the deploy path (provisioning is done via `gcloud`, see `gcp-setup.md`). If the client later adopts Terraform, add a `terraform validate` step here.
+
+---
+
+## 9. Pre-commit Hooks (optional but recommended)
+
+Pre-commit is a tool that runs checks automatically every time you run `git commit`. If any check fails, the commit is blocked and you have to fix the issue first. This prevents accidentally committing code with lint errors or formatting issues.
+
+### What checks run on every commit
+
+| Hook | What it does |
+|---|---|
+| `ruff` | Lint Python files, auto-fix what it can |
+| `ruff-format` | Reformat Python files to consistent style |
+| `trailing-whitespace` | Remove trailing spaces from all files |
+| `end-of-file-fixer` | Make sure all files end with a newline |
+| `check-yaml` | Validate YAML file syntax |
+| `check-added-large-files` | Block commits that accidentally include large files |
+| `detect-private-key` | Block commits that contain private key content |
+| `check-merge-conflict` | Block commits that still have `<<<<<<` conflict markers |
+
+The config file is `.pre-commit-config.yaml` at the repo root (same level as `.git`). Pre-commit reads this file to know which hooks to run.
+
+### Setup (one-time, per developer machine)
+
+Run this once after cloning the repo:
+
+```bash
+make setup
+```
+
+What `make setup` does: runs `uv sync` to install dependencies, then runs `pre-commit install` to register the hooks into `.git/hooks/pre-commit`. After this, every `git commit` in this repo will trigger the hooks automatically.
+
+### How it works in practice
+
+```bash
+git add src/tring_ingest/some_file.py
+git commit -m "fix something"
+# pre-commit runs ruff, ruff-format, trailing-whitespace, etc.
+# if all pass: commit goes through
+# if any fail: commit is blocked, fix the issue, git add again, then commit
+```
+
+### Run hooks manually without committing
+
+```bash
+cd ingestion
+uv run pre-commit run --all-files
+```
+
+What it does: runs all hooks against every file right now, without needing to do a git commit. Useful to check the whole codebase at once.
+
+### If you need to skip hooks temporarily
+
+```bash
+git commit --no-verify -m "your message"
+```
+
+**Only do this if you have a good reason.** Skipping hooks means lint errors can slip into the repo. CI will still catch them and block the merge.
