@@ -175,13 +175,34 @@ These run against a real GCP dev project. Only run after local tests pass.
 
 ### Run the extractor locally against dev BQ
 
-Run this from the repo root (the Makefile target does its own `cd ingestion`, so do not cd in first):
+All three extractors require `--from` and `--to` date arguments. Run from inside the `ingestion/` directory.
 
+**AppsFlyer** (shortcut via Makefile, run from repo root):
 ```bash
-make run-appsflyer-local PROJECT=your-dev-project FROM=2026-06-13 TO=2026-06-14
+make run-appsflyer-local PROJECT=your-dev-project FROM=2026-06-22 TO=2026-06-22
 ```
 
-What it does: calls the real AppsFlyer API, loads rows into `appsflyer_raw` in the dev BigQuery project. Requires `gcloud auth application-default login` and the `appsflyer-api-token` secret to exist in Secret Manager.
+**MoEngage** (run from inside `ingestion/`):
+```bash
+cd ingestion
+GCP_PROJECT=your-dev-project uv run python -m tring_ingest \
+  --source moengage \
+  --from 2026-06-22 \
+  --to 2026-06-22
+```
+
+**Play Console** (run from inside `ingestion/`):
+```bash
+cd ingestion
+GCP_PROJECT=your-dev-project \
+  PLAY_CONSOLE_SECRET_NAME=play-console-sa-key \
+  uv run python -m tring_ingest \
+  --source play_console \
+  --from 2026-06-22 \
+  --to 2026-06-22
+```
+
+What each does: calls the real API for that source, loads rows into the corresponding raw BQ dataset. Requires `gcloud auth application-default login` and the relevant secret to exist in Secret Manager.
 
 ### Run dbt against dev
 
