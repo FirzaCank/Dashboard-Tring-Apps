@@ -28,9 +28,10 @@ TO ?= $(shell date -u +%Y-%m-%d)
 	build-ingestion build-dbt \
 	push-ingestion push-dbt \
 	tf-init tf-plan tf-apply \
-	create-appsflyer create-moengage create-play-console create-dbt \
-	deploy-appsflyer deploy-moengage deploy-play-console deploy-dbt deploy-workflow deploy-scheduler \
-	run-appsflyer-local deploy
+	create-appsflyer create-moengage create-play-console create-app-store create-dbt \
+	deploy-appsflyer deploy-moengage deploy-play-console deploy-app-store deploy-dbt deploy-workflow deploy-scheduler \
+	run-appsflyer-local run-appsflyer run-moengage run-play-console run-app-store run-pipeline deploy \
+	cloudbuild-deploy-prod cloudbuild-deploy-dev
 
 # -- Dev setup -----------------------------------------------------------------
 
@@ -121,6 +122,17 @@ create-play-console: require-project
 		--command python \
 		--args "-m,tring_ingest,--source,play_console"
 
+# extract-app-store: two secrets (key+p8) accessed at runtime via Secret Manager client, not injected directly
+create-app-store: require-project
+	gcloud run jobs create extract-app-store \
+		--image $(IMAGE_INGESTION):latest \
+		--region $(REGION) \
+		--project $(PROJECT) \
+		--set-env-vars GCP_PROJECT=$(PROJECT),BQ_DATASET_RAW_APPSTORE=appstore_raw,REGION=$(REGION),APPSTORE_SECRET_NAME=appstore-connect-key,APPSTORE_APP_ID=1350501409 \
+		--service-account sa-extract-app-store@$(PROJECT).iam.gserviceaccount.com \
+		--command python \
+		--args "-m,tring_ingest,--source,app_store"
+
 # dbt-transform: NO --command/--args. The Dockerfile ENTRYPOINT runs
 # `dbt build --profiles-dir /app --target prod`. Overriding it here would break dbt.
 create-dbt: require-project
@@ -145,6 +157,12 @@ deploy-moengage: require-project
 
 deploy-play-console: require-project
 	gcloud run jobs update extract-play-console \
+		--image $(IMAGE_INGESTION):latest \
+		--region $(REGION) \
+		--project $(PROJECT)
+
+deploy-app-store: require-project
+	gcloud run jobs update extract-app-store \
 		--image $(IMAGE_INGESTION):latest \
 		--region $(REGION) \
 		--project $(PROJECT)
@@ -190,9 +208,63 @@ run-appsflyer-local: require-project
 		--from $(FROM) \
 		--to $(TO)
 
+# -- Cloud Run Job manual execute ----------------------------------------------
+# Triggers an existing Cloud Run Job on GCP (no Docker required).
+# Usage: make run-appsflyer PROJECT=your-project
+#        make run-appsflyer PROJECT=your-project FROM=2026-01-01 TO=2026-06-28
+
+run-appsflyer: require-project
+	gcloud run jobs execute extract-appsflyer \
+		--region $(REGION) \
+		--project $(PROJECT) \
+		--update-env-vars DATE_FROM=$(FROM),DATE_TO=$(TO) \
+		--wait
+
+run-moengage: require-project
+	gcloud run jobs execute extract-moengage \
+		--region $(REGION) \
+		--project $(PROJECT) \
+		--update-env-vars DATE_FROM=$(FROM),DATE_TO=$(TO) \
+		--wait
+
+run-play-console: require-project
+	gcloud run jobs execute extract-play-console \
+		--region $(REGION) \
+		--project $(PROJECT) \
+		--update-env-vars DATE_FROM=$(FROM),DATE_TO=$(TO) \
+		--wait
+
+run-app-store: require-project
+	gcloud run jobs execute extract-app-store \
+		--region $(REGION) \
+		--project $(PROJECT) \
+		--update-env-vars DATE_FROM=$(FROM),DATE_TO=$(TO) \
+		--wait
+
+run-pipeline: require-project
+	gcloud workflows run pipeline \
+		--location $(REGION) \
+		--project $(PROJECT)
+
+# -- Cloud Build deploy (no Docker Desktop required) --------------------------
+# Builds images in Cloud Build and deploys all jobs. Use instead of `make deploy`
+# when Docker is not available locally.
+
+cloudbuild-deploy-prod: require-project
+	gcloud builds submit . \
+		--config=cloudbuild/deploy-prod.yaml \
+		--substitutions="_PROJECT=$(PROJECT),COMMIT_SHA=latest" \
+		--project=$(PROJECT)
+
+cloudbuild-deploy-dev: require-project
+	gcloud builds submit . \
+		--config=cloudbuild/deploy-dev.yaml \
+		--substitutions="_PROJECT=$(PROJECT),COMMIT_SHA=latest" \
+		--project=$(PROJECT)
+
 # -- Full deploy ---------------------------------------------------------------
 # Rolls new images onto EXISTING jobs. The jobs/workflow/scheduler are created once
 # via the create-* targets (or docs/gcp-setup.md steps 8-10). No Terraform.
 
-deploy: require-project push-ingestion push-dbt deploy-appsflyer deploy-moengage deploy-play-console deploy-dbt deploy-workflow deploy-scheduler
+deploy: require-project push-ingestion push-dbt deploy-appsflyer deploy-moengage deploy-play-console deploy-app-store deploy-dbt deploy-workflow deploy-scheduler
 	@echo "Deploy to $(ENV) complete."

@@ -19,9 +19,10 @@ main:
             steps:
               - compute_yesterday:
                   assign:
-                    - yesterday_unix: ${sys.now() - 86400}
-                    - date_from: ${text.substring(time.format(yesterday_unix), 0, 10)}
-                    - date_to: ${text.substring(time.format(yesterday_unix), 0, 10)}
+                    - two_days_ago_unix: ${sys.now() - 172800}
+                    - three_days_ago_unix: ${sys.now() - 259200}
+                    - date_from: ${text.substring(time.format(three_days_ago_unix), 0, 10)}
+                    - date_to: ${text.substring(time.format(two_days_ago_unix), 0, 10)}
 
     - build_extract_body:
         assign:
@@ -160,6 +161,68 @@ main:
                         - play_console_done:
                             assign:
                               - play_console_status: "succeeded"
+
+            - app_store_branch:
+                steps:
+                  - run_extract_app_store:
+                      try:
+                        call: http.post
+                        args:
+                          url: ${"https://run.googleapis.com/v2/projects/" + project + "/locations/" + region + "/jobs/extract-app-store:run"}
+                          auth:
+                            type: OAuth2
+                          body: ${extract_body}
+                        result: app_store_result
+                      except:
+                        as: e
+                        steps:
+                          - fail_app_store_start:
+                              raise: "extract-app-store failed to start"
+
+                  - get_app_store_execution:
+                      assign:
+                        - app_store_execution: ${app_store_result.body.metadata.name}
+
+                  - wait_for_app_store:
+                      steps:
+                        - poll_app_store:
+                            call: http.get
+                            args:
+                              url: ${"https://run.googleapis.com/v2/" + app_store_execution}
+                              auth:
+                                type: OAuth2
+                            result: app_store_poll
+                        - check_app_store_state:
+                            switch:
+                              - condition: ${"reconciling" in app_store_poll.body and app_store_poll.body.reconciling == true}
+                                steps:
+                                  - sleep_app_store_reconciling:
+                                      call: sys.sleep
+                                      args:
+                                        seconds: 15
+                                  - retry_app_store_reconciling:
+                                      next: poll_app_store
+                              - condition: ${app_store_poll.body.conditions[0].state == "CONDITION_SUCCEEDED" and "succeededCount" in app_store_poll.body and app_store_poll.body.succeededCount == app_store_poll.body.taskCount}
+                                next: app_store_done
+                              - condition: ${app_store_poll.body.conditions[0].state == "CONDITION_SUCCEEDED"}
+                                steps:
+                                  - fail_app_store_partial:
+                                      raise: "extract-app-store completed but not all tasks succeeded"
+                              - condition: ${app_store_poll.body.conditions[0].state == "CONDITION_FAILED"}
+                                steps:
+                                  - fail_app_store_execution:
+                                      raise: "extract-app-store execution failed"
+                              - condition: true
+                                steps:
+                                  - sleep_app_store:
+                                      call: sys.sleep
+                                      args:
+                                        seconds: 15
+                                  - retry_app_store:
+                                      next: poll_app_store
+                        - app_store_done:
+                            assign:
+                              - app_store_status: "succeeded"
 
             - moengage_branch:
                 steps:
