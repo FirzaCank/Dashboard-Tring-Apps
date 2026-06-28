@@ -41,6 +41,7 @@ Two long-lived branches:
 5. When develop is verified, open PR: develop -> main
    - PR requires review before merge
    - Merge to main triggers Cloud Build deploy to prod GCP
+   - NEVER merge directly via git merge — always use PR on GitHub
 ```
 
 ---
