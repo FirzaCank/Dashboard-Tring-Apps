@@ -13,22 +13,26 @@ If you are new to this project, read in this order:
 7. **[data-catalog-appsflyer.md](data-catalog-appsflyer.md)** - reference for the AppsFlyer data: tables, columns, row counts, rate limits. Look things up here when you need detail; you do not need to read it top to bottom.
 8. **[data-catalog-moengage.md](data-catalog-moengage.md)** - reference for the MoEngage data: endpoints, columns, chunking limits, known metric behaviors (CTR scale, ALL_PLATFORMS, impression as open proxy). Look things up here when you need detail.
 9. **[data-catalog-play-console.md](data-catalog-play-console.md)** - reference for the Play Console data: metric sets, review fields, API endpoints, GCP infra setup. Look things up here when you need detail.
+10. **[data-catalog-appstore.md](data-catalog-appstore.md)** - reference for the App Store Connect data: Analytics API flow (async), reviews, sales/finance reports. Read when working on the App Store source.
 
 ---
 
 ## The big picture in one paragraph
 
-Twice a day, a timer (Cloud Scheduler) starts an orchestrator (Cloud Workflows). The orchestrator runs three extract jobs **in parallel**: one downloads data from the AppsFlyer API, one from MoEngage, and one from Google Play Console. All three save raw data into BigQuery. Once all three complete, a **transform** job (dbt) cleans and reshapes that raw data into analytics-ready tables. Those final tables feed a Looker Studio dashboard. That is the whole pipeline.
+Twice a day, a timer (Cloud Scheduler) starts an orchestrator (Cloud Workflows). The orchestrator runs four extract jobs **in parallel**: AppsFlyer, MoEngage, Google Play Console, and App Store Connect. All four save raw data into BigQuery. Once all complete, a **transform** job (dbt) cleans and reshapes that raw data into analytics-ready tables. Those final tables feed a Looker Studio dashboard. That is the whole pipeline.
 
 ```
 Cloud Scheduler (timer, 2x/day)
    -> Cloud Workflows (orchestrator)
-        -> [parallel] extract-appsflyer job      (download AppsFlyer API     -> BigQuery raw)
-        -> [parallel] extract-moengage job       (download MoEngage API      -> BigQuery raw)
-        -> [parallel] extract-play-console job   (download Play Console API  -> BigQuery raw)
-        -> dbt-transform job  (runs only after all three extracts succeed)  (raw -> staging -> mart tables)
+        -> [parallel] extract-appsflyer job      (download AppsFlyer API        -> BigQuery raw)
+        -> [parallel] extract-moengage job       (download MoEngage API         -> BigQuery raw)
+        -> [parallel] extract-play-console job   (download Play Console API     -> BigQuery raw)
+        -> [parallel] extract-app-store job      (download App Store Connect API -> BigQuery raw)  [IN PROGRESS]
+        -> dbt-transform job  (runs only after all four extracts succeed)  (raw -> staging -> mart tables)
               -> Looker Studio dashboard reads the mart tables
 ```
+
+> **App Store source status (2026-06-26):** auth working, code implemented, GCP infra not yet provisioned. See `data-catalog-appstore.md`.
 
 ---
 
@@ -43,7 +47,7 @@ Terms used throughout the docs, plain-language definitions.
 | **GCP** | Google Cloud Platform. The cloud provider everything runs on. |
 | **GCP project** | A container that holds all the cloud resources (jobs, datasets, secrets). Identified by a project ID (for example `my-company-data-prod`). Everything is scoped to one project. |
 | **BigQuery (BQ)** | Google's data warehouse. Where all the data lives, organized into datasets and tables. You query it with SQL. |
-| **Dataset** | A folder inside BigQuery that groups related tables. This project has nine: `appsflyer_raw`, `appsflyer_staging`, `appsflyer_mart` for AppsFlyer data; `moengage_raw`, `moengage_staging`, `moengage_mart` for MoEngage data; and `play_raw`, `play_staging`, `play_mart` for Play Console data. |
+| **Dataset** | A folder inside BigQuery that groups related tables. This project has twelve: `appsflyer_raw`, `appsflyer_staging`, `appsflyer_mart`; `moengage_raw`, `moengage_staging`, `moengage_mart`; `play_raw`, `play_staging`, `play_mart`; and `appstore_raw`, `appstore_staging`, `appstore_mart` (App Store, provisioned after GCP setup). |
 | **Cloud Run Job** | A container that runs once, does its work, and stops (it is not a web server that stays up). The extract step and the dbt step are each a Cloud Run Job. |
 | **Cloud Workflows** | The orchestrator. A small script that runs the jobs in order and waits for each to finish before starting the next. |
 | **Cloud Scheduler** | A cron timer in the cloud. Fires on a schedule and starts the Workflow. |

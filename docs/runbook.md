@@ -92,7 +92,7 @@ gcloud logging read 'resource.type="cloud_run_job" AND resource.labels.job_name=
 ```
 
 Key lines to look for:
-- `Done. PASS=140 WARN=0 ERROR=0` → success
+- `Done. PASS=140 WARN=0 ERROR=0` → success (3 sources; PASS=N will increase once App Store source GCP is provisioned)
 - `Done. PASS=XX ERROR=N` → test failures, check which model
 
 **Step 4  -  Check execution list (optional):**
@@ -550,3 +550,66 @@ The output shows `totalBytesProcessed` - this is the scan size before any cost i
 Raw tables (`appsflyer_raw`, `moengage_raw`, `play_raw`) are append-only and not partitioned. **Avoid querying raw tables directly** for analysis - use the mart tables instead. Raw tables grow unbounded and scanning them is expensive.
 
 Staging tables (`appsflyer_staging`, `moengage_staging`, etc.) are views or intermediate tables used only by dbt. Query mart tables for all analysis.
+
+---
+
+## 17. App Store source status and next steps
+
+> **Status (2026-06-26):** Auth working. Code implemented. GCP infra NOT yet provisioned. Analytics data pending (Apple processes 24-48h after first request).
+
+**Check if analytics instances are ready (run 2026-06-27+):**
+```bash
+cd tring-data-pipeline
+uv run --with PyJWT --with cryptography --with requests python3 ../test-appstore/test_appstore_endpoints.py
+```
+
+Or use Postman collection `AppStore.postman_collection.json` step 3a-3d.
+
+**Provision GCP (run after analytics instances confirmed):**
+```bash
+export PROJECT=your-gcp-project-id
+
+# SA
+gcloud iam service-accounts create sa-extract-app-store \
+  --display-name="App Store extractor runtime" --project=$PROJECT
+
+# IAM
+gcloud projects add-iam-policy-binding $PROJECT \
+  --member="serviceAccount:sa-extract-app-store@${PROJECT}.iam.gserviceaccount.com" \
+  --role="roles/bigquery.dataEditor"
+gcloud projects add-iam-policy-binding $PROJECT \
+  --member="serviceAccount:sa-extract-app-store@${PROJECT}.iam.gserviceaccount.com" \
+  --role="roles/bigquery.jobUser"
+
+# Secret (store .p8 key content)
+gcloud secrets create appstore-connect-key --replication-policy="automatic" --project=$PROJECT
+cat $APPSTORE_P8_PATH | gcloud secrets versions add appstore-connect-key \
+  --data-file=- --project=$PROJECT
+
+gcloud secrets add-iam-policy-binding appstore-connect-key \
+  --member="serviceAccount:sa-extract-app-store@${PROJECT}.iam.gserviceaccount.com" \
+  --role="roles/secretmanager.secretAccessor" --project=$PROJECT
+
+# BQ datasets
+bq --project_id=$PROJECT mk --location=asia-southeast2 appstore_raw
+bq --project_id=$PROJECT mk --location=asia-southeast2 appstore_staging
+bq --project_id=$PROJECT mk --location=asia-southeast2 appstore_mart
+
+# Cloud Run Job (after image built)
+REGISTRY=asia-southeast2-docker.pkg.dev
+gcloud run jobs create extract-app-store \
+  --image=${REGISTRY}/${PROJECT}/tring-service/ingestion:latest \
+  --region=asia-southeast2 \
+  --service-account=sa-extract-app-store@${PROJECT}.iam.gserviceaccount.com \
+  --set-env-vars="GCP_PROJECT=${PROJECT},BQ_DATASET_RAW_APP_STORE=appstore_raw,REGION=asia-southeast2" \
+  --set-secrets="APPSTORE_CONNECT_KEY=appstore-connect-key:latest" \
+  --memory=2Gi --cpu=1 --max-retries=0 --project=$PROJECT
+```
+
+**App Store API key details (do NOT hardcode in code):**
+- Key ID: `3JJKJT5QCK` (from `.env`)
+- Issuer ID: `69a6de96-4e47-47e3-e053-5b8c7c11a4d1` (from `.env`)
+- .p8 file: `AuthKey_3JJKJT5QCK.p8` at repo root (gitignored, never commit)
+- Analytics ONGOING request ID: `77203237-b1c3-40ed-bccf-ce4345c7d5ab` (store in Secret Manager or env var)
+
+**Analytics API note:** ingestion code needs updating to use the async 4-step flow (POST request -> GET instances -> GET segments -> download). Current `client.py` scaffold may need rewrite. See `data-catalog-appstore.md` for full flow.

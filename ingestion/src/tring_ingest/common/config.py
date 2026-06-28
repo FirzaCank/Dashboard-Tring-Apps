@@ -42,3 +42,12 @@ BQ_DATASET_MART_PLAY_CONSOLE = "play_mart"
 
 # SA JSON stored in Secret Manager as a raw JSON string
 PLAY_CONSOLE_SECRET_NAME = os.environ.get("PLAY_CONSOLE_SECRET_NAME", "play-console-sa-key")
+
+# App Store Connect
+BQ_DATASET_RAW_APPSTORE = os.environ.get("BQ_DATASET_RAW_APPSTORE", "appstore_raw")
+BQ_DATASET_STAGING_APPSTORE = "appstore_staging"
+BQ_DATASET_MART_APPSTORE = "appstore_mart"
+
+# Secret format: "KEY_ID:ISSUER_ID:P8_CONTENT" (single secret, all creds concatenated)
+APPSTORE_SECRET_NAME = os.environ.get("APPSTORE_SECRET_NAME", "appstore-connect-key")
+APPSTORE_APP_ID = os.environ.get("APPSTORE_APP_ID", "1350501409")

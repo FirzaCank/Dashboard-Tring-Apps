@@ -41,5 +41,9 @@ def main(argv=None):
         from tring_ingest.sources.play_console.extract import run
 
         run(date_from=args.date_from, date_to=args.date_to)
+    elif args.source == "app_store":
+        from tring_ingest.sources.app_store.extract import run
+
+        run(date_from=args.date_from, date_to=args.date_to)
     else:
         raise NotImplementedError(f"{args.source} source not yet implemented")
