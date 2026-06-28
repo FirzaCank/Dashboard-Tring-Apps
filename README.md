@@ -88,6 +88,7 @@ The workflow auto-computes yesterday when no dates are passed. See
 | Doc | What |
 |---|---|
 | [docs/index.md](docs/index.md) | Start here - reading order + glossary |
+| [docs/contributing.md](docs/contributing.md) | Branch strategy, PR flow, commit format, local checks |
 | [docs/gcp-setup.md](docs/gcp-setup.md) | Provisioning: APIs, SAs, IAM, secrets, datasets, jobs |
 | [docs/handover.md](docs/handover.md) | Client prod onboarding (GitLab + VPN + Cloud Build) |
 | [docs/runbook.md](docs/runbook.md) | Ops: triggers, backfill, rotation, failures, adding a source |

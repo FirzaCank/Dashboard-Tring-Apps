@@ -134,7 +134,7 @@ The trigger tells Cloud Build: "every time someone pushes code to the `main` bra
 
 > **One GCP project (prod only)?** Create only the trigger below (`deploy-prod-on-push`). The repo also contains `cloudbuild/deploy-dev.yaml` for teams with a separate dev project - you can ignore it. One project = one trigger = one `main` branch = done.
 
-> **Two GCP projects (dev + prod)?** Create two triggers: one pointing `cloudbuild/deploy-dev.yaml` on a `dev` branch (with `_PROJECT` = your dev project ID), and one pointing `cloudbuild/deploy-prod.yaml` on `main` (with `_PROJECT` = your prod project ID). Each project needs its own GCP provisioning (Step 1) and its own service accounts.
+> **Two GCP projects (dev + prod)?** Create two triggers: one pointing `cloudbuild/deploy-dev.yaml` on the `develop` branch (with `_PROJECT` = your dev project ID), and one pointing `cloudbuild/deploy-prod.yaml` on `main` (with `_PROJECT` = your prod project ID). Each project needs its own GCP provisioning (Step 1) and its own service accounts. See `docs/contributing.md` for the full branch strategy (feature/* → develop → main).
 
 **Via GCP Console (recommended):**
 
