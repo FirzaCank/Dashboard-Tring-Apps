@@ -294,7 +294,7 @@ Tables. Full refresh each run. Partitioned + clustered for query efficiency.
 
 ## Known Behaviors and Limitations
 
-- **Metric set data lag:** Play Developer Reporting API data lags by ~2-3 days. Querying today's data returns nothing; always query with a date_to at least 3 days in the past for complete data.
+- **Metric set data lag:** Play Developer Reporting API data lags by exactly **2 days** (confirmed 2026-06-28 via live API testing). `date_to=T-1` returns HTTP 400 `end_date exceeds freshness boundary`; `date_to=T-2` returns 200. The pipeline default window (T-3 to T-2) is set to accommodate this — this window applies to all 4 sources (AppsFlyer, MoEngage, App Store, Play Console) since all share the same `DATE_FROM`/`DATE_TO` env vars injected by Cloud Workflows. The other 3 sources have no data lag; the 1-day conservatism is a deliberate trade-off to keep pipeline.yaml simple (one shared window).
 - **Reviews not date-scoped:** The reviews endpoint returns all reviews regardless of date range. Re-running produces duplicates in raw; staging deduplicates by `review_id` and `last_modified_seconds`.
 - **errorCountMetricSet requires reportType dimension:** Omitting `reportType` returns HTTP 400. This is an API constraint, not optional.
 - **Confidence intervals only for crash rate and ANR rate:** Only `crashRateMetricSet` and `anrRateMetricSet` return CI bounds in practice (verified live and against the raw BQ table schemas 2026-06-22). Stuck bg wakelock, excessive wakeup, and slow start rate do NOT return CI columns. `errorCountMetricSet` also has no CI. The ingestion code handles both cases (only writes CI columns when the API returns them), so raw table schemas differ per metric set.

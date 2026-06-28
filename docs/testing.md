@@ -64,7 +64,7 @@ What it does: exits with error if any file would be reformatted. Used in CI to b
 uv run pytest tests/ -v
 ```
 
-What it does: runs all test cases in `tests/`. The `-v` flag shows each test name and pass/fail individually. Current suite: 38 tests total (10 AppsFlyer + 12 MoEngage + 16 Play Console), all PASS.
+What it does: runs all test cases in `tests/`. The `-v` flag shows each test name and pass/fail individually. Current suite: 49 tests total (10 AppsFlyer + 12 MoEngage + 16 Play Console + 11 App Store), all PASS.
 
 ### Test cases covered
 
@@ -106,6 +106,22 @@ What it does: runs all test cases in `tests/`. The `-v` flag shows each test nam
 | `test_pull_all_reviews_empty` | Empty review list returns empty list |
 | `test_run_calls_all_metric_sets_and_reviews` | `run()` fires all 6 metric sets + reviews pull (7 total) |
 | `test_run_collects_errors_raises_at_end` | Failed pulls collected; `RuntimeError` raised at end with all failures |
+
+**App Store (`test_appstore_extract.py`) - 11 tests:**
+
+| Test | What it tests |
+|---|---|
+| `test_snake` | `_snake()` strips, lowercases, replaces spaces with underscores |
+| `test_flatten_tsv_basic` | TSV text with 2 rows produces 2 dicts with correct keys |
+| `test_flatten_tsv_empty` | Empty string returns empty list |
+| `test_flatten_review` | All review fields (title, body, rating, territory, nickname) extracted correctly |
+| `test_resolve_report_ids_returns_matched` | `_resolve_report_ids` matches reports by name, returns (report_id, table) pairs |
+| `test_resolve_report_ids_pagination` | `nextPageToken` link triggers second GET call |
+| `test_pull_analytics_report_downloads_and_decompresses` | Segments fetched, S3 URL downloaded via `get_unsigned`, gzip decompressed, rows returned |
+| `test_pull_analytics_report_skips_missing_url` | Segment with no `url` attribute is skipped cleanly |
+| `test_run_loads_reviews_and_analytics` | `run()` calls reviews pull + all 5 analytics reports, `load_json_rows_to_raw` called 6 times |
+| `test_run_skips_unmatched_report` | Report not in ANALYTICS_REPORTS is ignored silently |
+| `test_run_collects_errors_raises_at_end` | One analytics report fails, remaining reports still load, `RuntimeError` raised at end listing all failed reports |
 
 All tests are mocked  -  no real HTTP calls, no real BigQuery connection needed.
 
@@ -201,6 +217,20 @@ GCP_PROJECT=your-dev-project \
   --from 2026-06-22 \
   --to 2026-06-22
 ```
+
+**App Store** (run from inside `ingestion/`):
+```bash
+cd ingestion
+GCP_PROJECT=your-dev-project \
+  APPSTORE_SECRET_NAME=appstore-connect-key \
+  APPSTORE_APP_ID=1350501409 \
+  uv run python -m tring_ingest \
+  --source app_store \
+  --from 2026-06-22 \
+  --to 2026-06-22
+```
+
+> Note: `--from`/`--to` only affects the reviews pull. Analytics downloads are stateless - Apple determines which date instances are available. dbt staging deduplicates on re-run.
 
 What each does: calls the real API for that source, loads rows into the corresponding raw BQ dataset. Requires `gcloud auth application-default login` and the relevant secret to exist in Secret Manager.
 

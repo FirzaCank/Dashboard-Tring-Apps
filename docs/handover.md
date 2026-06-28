@@ -30,13 +30,13 @@ export PROJECT=YOUR_CLIENT_GCP_PROJECT_ID
 
 Then run sections 1–10 of `docs/gcp-setup.md` in order:
 1. Enable APIs
-2. Create service accounts (sa-extract-appsflyer, sa-extract-moengage, sa-extract-play-console, sa-dbt, sa-workflows, sa-scheduler)
+2. Create service accounts (sa-extract-appsflyer, sa-extract-moengage, sa-extract-play-console, sa-extract-app-store, sa-dbt, sa-workflows, sa-scheduler)
 3. Grant IAM roles
-4. Create secrets (AppsFlyer token + MoEngage credentials + Play Console SA key  -  see note below)
+4. Create secrets (AppsFlyer token + MoEngage credentials + Play Console SA key + App Store Connect key - see note below)
 5. Create Artifact Registry repository
-6. Create BigQuery datasets (9 total: appsflyer, moengage, and play_console, each raw/staging/mart)
+6. Create BigQuery datasets (12 total: appsflyer, moengage, play_console, and appstore, each raw/staging/mart)
 7. Build and push container images
-8. Create Cloud Run Jobs (extract-appsflyer, extract-moengage, extract-play-console, dbt-transform)
+8. Create Cloud Run Jobs (extract-appsflyer, extract-moengage, extract-play-console, extract-app-store, dbt-transform)
 9. Deploy Cloud Workflows (pipeline)
 10. Create Cloud Scheduler jobs (twice-daily trigger)
 
@@ -46,6 +46,7 @@ Then run sections 1–10 of `docs/gcp-setup.md` in order:
 > - **AppsFlyer:** token from the AppsFlyer dashboard (Configuration > API Token v3) into secret `appsflyer-api-token`.
 > - **MoEngage:** workspace ID + API key from the MoEngage dashboard (Settings > APIs) into secret `moengage-api-creds`, formatted as `WORKSPACE_ID:API_KEY` (colon-delimited, no spaces).
 > - **Play Console:** SA key JSON from the client's production GCP project (`pgd-prd-digital-rating-tring`), SA `dashboard-monitoring-aiinsight`. This SA already has Play Console access - no Play Console UI setup needed. Store in secret `play-console-sa-key`. Delete the local key file after adding to Secret Manager.
+> - **App Store Connect:** Two secrets required. Secret `appstore-connect-key`: formatted as `KEY_ID:ISSUER_ID` (colon-delimited, no spaces). Secret `appstore-connect-key-p8`: the raw content of the .p8 private key file from App Store Connect (developer.apple.com > Users and Access > Keys). Delete the local .p8 file after adding to Secret Manager.
 
 ---
 
@@ -191,9 +192,9 @@ gcloud builds submit . \
 This command uploads the code to Cloud Build and runs the deploy script. It will:
 1. Build the ingestion container image and push it to Artifact Registry
 2. Build the dbt container image and push it to Artifact Registry
-3. Update the existing Cloud Run Jobs (`extract-appsflyer`, `extract-moengage`, `extract-play-console`, and `dbt-transform`) to use the new images
+3. Update the existing Cloud Run Jobs (`extract-appsflyer`, `extract-moengage`, `extract-play-console`, `extract-app-store`, and `dbt-transform`) to use the new images
 
-> **Prerequisite:** this build runs `gcloud run jobs update`, which only works on jobs that already exist. The jobs are created once in `gcp-setup.md` section 8 (or via `make create-appsflyer create-moengage create-play-console create-dbt`). If you run this build before creating the jobs, it fails with `NOT_FOUND`; go back and create them first.
+> **Prerequisite:** this build runs `gcloud run jobs update`, which only works on jobs that already exist. The jobs are created once in `gcp-setup.md` section 8 (or via `make create-appsflyer create-moengage create-play-console create-app-store create-dbt`). If you run this build before creating the jobs, it fails with `NOT_FOUND`; go back and create them first.
 
 **Watch the build progress:**
 
@@ -228,7 +229,7 @@ gcloud workflows executions list pipeline \
   --limit=5
 ```
 
-Expected: `state: SUCCEEDED`. Extract jobs run in parallel (extract-appsflyer, extract-moengage, extract-play-console). After all three complete, dbt-transform runs. See `docs/runbook.md` section 2 for how to verify each stage.
+Expected: `state: SUCCEEDED`. Extract jobs run in parallel (extract-appsflyer, extract-moengage, extract-play-console, extract-app-store). After all four complete, dbt-transform runs. See `docs/runbook.md` section 2 for how to verify each stage.
 
 ---
 
@@ -255,7 +256,7 @@ next real failure or by deliberately failing a run.
 | Event | What happens automatically |
 |---|---|
 | Push to `main` on GitLab | Cloud Build trigger fires → build images → roll new images onto Cloud Run Jobs |
-| Cloud Scheduler (twice daily, 08:00 and 20:00 WIB) | Triggers Cloud Workflows → runs extract-appsflyer (8 pulls), extract-moengage, and extract-play-console in parallel → runs dbt |
+| Cloud Scheduler (twice daily, 08:00 and 20:00 WIB) | Triggers Cloud Workflows → runs extract-appsflyer (8 pulls), extract-moengage, extract-play-console, and extract-app-store in parallel → runs dbt |
 | Extractor failure | Workflow polling detects non-success, marks the execution `FAILED` (dbt does NOT run) |
 | dbt test failure | Job exits non-zero → Workflow marks the execution `FAILED` |
 
@@ -287,6 +288,7 @@ See `docs/runbook.md` for:
 | Data catalog (AppsFlyer) | `docs/data-catalog-appsflyer.md` |
 | Data catalog (MoEngage) | `docs/data-catalog-moengage.md` |
 | Data catalog (Play Console) | `docs/data-catalog-play-console.md` |
+| Data catalog (App Store Connect) | `docs/data-catalog-appstore.md` |
 | CI/CD config | `cloudbuild/` |
 | Infrastructure as code (reference only) | `infra/` (Terraform  -  not used in deploy; gcloud is authoritative) |
 

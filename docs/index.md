@@ -27,12 +27,12 @@ Cloud Scheduler (timer, 2x/day)
         -> [parallel] extract-appsflyer job      (download AppsFlyer API        -> BigQuery raw)
         -> [parallel] extract-moengage job       (download MoEngage API         -> BigQuery raw)
         -> [parallel] extract-play-console job   (download Play Console API     -> BigQuery raw)
-        -> [parallel] extract-app-store job      (download App Store Connect API -> BigQuery raw)  [IN PROGRESS]
+        -> [parallel] extract-app-store job      (download App Store Connect API -> BigQuery raw)  [CODE DONE - GCP PENDING]
         -> dbt-transform job  (runs only after all four extracts succeed)  (raw -> staging -> mart tables)
               -> Looker Studio dashboard reads the mart tables
 ```
 
-> **App Store source status (2026-06-26):** auth working, code implemented, GCP infra not yet provisioned. See `data-catalog-appstore.md`.
+> **App Store source status (2026-06-28):** ingestion + transform code DONE (endpoints.py, extract.py, 10 tests, 6 staging + 3 mart dbt models, pipeline.yaml 4th branch, cloudbuild, Makefile). GCP infra NOT yet provisioned. See `data-catalog-appstore.md`.
 
 ---
 
@@ -47,7 +47,7 @@ Terms used throughout the docs, plain-language definitions.
 | **GCP** | Google Cloud Platform. The cloud provider everything runs on. |
 | **GCP project** | A container that holds all the cloud resources (jobs, datasets, secrets). Identified by a project ID (for example `my-company-data-prod`). Everything is scoped to one project. |
 | **BigQuery (BQ)** | Google's data warehouse. Where all the data lives, organized into datasets and tables. You query it with SQL. |
-| **Dataset** | A folder inside BigQuery that groups related tables. This project has twelve: `appsflyer_raw`, `appsflyer_staging`, `appsflyer_mart`; `moengage_raw`, `moengage_staging`, `moengage_mart`; `play_raw`, `play_staging`, `play_mart`; and `appstore_raw`, `appstore_staging`, `appstore_mart` (App Store, provisioned after GCP setup). |
+| **Dataset** | A folder inside BigQuery that groups related tables. This project has twelve datasets (three per source): `appsflyer_raw/staging/mart`, `moengage_raw/staging/mart`, `play_raw/staging/mart`, `appstore_raw/staging/mart`. App Store datasets provisioned after GCP setup. |
 | **Cloud Run Job** | A container that runs once, does its work, and stops (it is not a web server that stays up). The extract step and the dbt step are each a Cloud Run Job. |
 | **Cloud Workflows** | The orchestrator. A small script that runs the jobs in order and waits for each to finish before starting the next. |
 | **Cloud Scheduler** | A cron timer in the cloud. Fires on a schedule and starts the Workflow. |

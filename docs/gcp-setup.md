@@ -39,6 +39,7 @@ gcloud services enable run.googleapis.com secretmanager.googleapis.com workflows
 gcloud iam service-accounts create sa-extract-appsflyer --display-name="AppsFlyer extractor runtime" --project=$PROJECT
 gcloud iam service-accounts create sa-extract-moengage --display-name="MoEngage extractor runtime" --project=$PROJECT
 gcloud iam service-accounts create sa-extract-play-console --display-name="Play Console extractor runtime" --project=$PROJECT
+gcloud iam service-accounts create sa-extract-app-store --display-name="App Store extractor runtime" --project=$PROJECT
 gcloud iam service-accounts create sa-dbt --display-name="dbt transform runtime" --project=$PROJECT
 gcloud iam service-accounts create sa-workflows --display-name="Cloud Workflows orchestrator" --project=$PROJECT
 gcloud iam service-accounts create sa-scheduler --display-name="Cloud Scheduler trigger" --project=$PROJECT
@@ -108,6 +109,16 @@ This SA is the runtime identity of the Cloud Run Job - it writes to BigQuery and
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:sa-extract-play-console@${PROJECT}.iam.gserviceaccount.com" --role="roles/bigquery.dataEditor"
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:sa-extract-play-console@${PROJECT}.iam.gserviceaccount.com" --role="roles/bigquery.jobUser"
 gcloud secrets add-iam-policy-binding play-console-sa-key --member="serviceAccount:sa-extract-play-console@${PROJECT}.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor" --project=$PROJECT
+```
+
+### sa-extract-app-store
+Runs the App Store extract Cloud Run Job. Uses two secrets (key ID:issuer ID + .p8 content), accessed at runtime via Secret Manager client.
+
+```bash
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:sa-extract-app-store@${PROJECT}.iam.gserviceaccount.com" --role="roles/bigquery.dataEditor"
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:sa-extract-app-store@${PROJECT}.iam.gserviceaccount.com" --role="roles/bigquery.jobUser"
+gcloud secrets add-iam-policy-binding appstore-connect-key --member="serviceAccount:sa-extract-app-store@${PROJECT}.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor" --project=$PROJECT
+gcloud secrets add-iam-policy-binding appstore-connect-key-p8 --member="serviceAccount:sa-extract-app-store@${PROJECT}.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor" --project=$PROJECT
 ```
 
 ### sa-scheduler
@@ -207,6 +218,32 @@ gcloud secrets versions list play-console-sa-key --project=$PROJECT
 gcloud secrets versions disable OLD_VERSION_NUMBER --secret=play-console-sa-key --project=$PROJECT
 ```
 
+### App Store Connect
+
+Two secrets required. The key ID and issuer ID are in `.env`; the .p8 file is at repo root (gitignored, never commit).
+
+```bash
+gcloud secrets create appstore-connect-key --replication-policy="automatic" --project=$PROJECT
+
+# Value format: KEY_ID:ISSUER_ID  (colon-separated, no spaces)
+# Get values from .env (APPSTORE_KEY_ID and APPSTORE_ISSUER_ID)
+echo -n "YOUR_KEY_ID:YOUR_ISSUER_ID" | gcloud secrets versions add appstore-connect-key --data-file=- --project=$PROJECT
+
+gcloud secrets create appstore-connect-key-p8 --replication-policy="automatic" --project=$PROJECT
+
+# Value: full content of AuthKey_XXXXXXXX.p8 (the .p8 file, NOT the path)
+cat AuthKey_3JJKJT5QCK.p8 | gcloud secrets versions add appstore-connect-key-p8 --data-file=- --project=$PROJECT
+```
+
+> **Security note:** the .p8 file grants signing authority for App Store Connect API. Store only in Secret Manager. Delete local copy once loaded: `rm AuthKey_3JJKJT5QCK.p8`. The `.gitignore` blocks `*.p8` so it cannot be committed accidentally.
+
+To rotate (new key generated in App Store Connect):
+```bash
+echo -n "NEW_KEY_ID:NEW_ISSUER_ID" | gcloud secrets versions add appstore-connect-key --data-file=- --project=$PROJECT
+cat new.p8 | gcloud secrets versions add appstore-connect-key-p8 --data-file=- --project=$PROJECT
+rm new.p8
+```
+
 ---
 
 ## 5. Create Artifact Registry Repository
@@ -243,6 +280,14 @@ bq --project_id=$PROJECT mk --location=asia-southeast2 moengage_mart
 bq --project_id=$PROJECT mk --location=asia-southeast2 play_raw
 bq --project_id=$PROJECT mk --location=asia-southeast2 play_staging
 bq --project_id=$PROJECT mk --location=asia-southeast2 play_mart
+```
+
+### App Store
+
+```bash
+bq --project_id=$PROJECT mk --location=asia-southeast2 appstore_raw
+bq --project_id=$PROJECT mk --location=asia-southeast2 appstore_staging
+bq --project_id=$PROJECT mk --location=asia-southeast2 appstore_mart
 ```
 
 ---
@@ -338,6 +383,20 @@ gcloud run jobs create extract-play-console \
   --max-retries=0 \
   --project=$PROJECT
 
+# extract-app-store: two secrets accessed at runtime via Secret Manager client (not injected directly).
+# ONGOING analytics request ID override via env var if the request is ever recreated.
+gcloud run jobs create extract-app-store \
+  --image=${REGISTRY}/${PROJECT}/tring-service/ingestion:latest \
+  --region=asia-southeast2 \
+  --service-account=sa-extract-app-store@${PROJECT}.iam.gserviceaccount.com \
+  --set-env-vars="GCP_PROJECT=${PROJECT},BQ_DATASET_RAW_APPSTORE=appstore_raw,REGION=asia-southeast2,APPSTORE_SECRET_NAME=appstore-connect-key,APPSTORE_APP_ID=1350501409" \
+  --command=python \
+  --args="-m,tring_ingest,--source,app_store" \
+  --memory=2Gi \
+  --cpu=1 \
+  --max-retries=0 \
+  --project=$PROJECT
+
 # dbt-transform
 # ENTRYPOINT is hardcoded in Dockerfile: ["dbt", "build", "--profiles-dir", "/app", "--target", "prod"]
 # Do NOT set --command or --args here  -  they override the Dockerfile ENTRYPOINT and break dbt
@@ -405,6 +464,11 @@ gcloud run jobs update extract-moengage \
   --project=$PROJECT
 
 gcloud run jobs update extract-play-console \
+  --image=${REGISTRY}/${PROJECT}/tring-service/ingestion:latest \
+  --region=asia-southeast2 \
+  --project=$PROJECT
+
+gcloud run jobs update extract-app-store \
   --image=${REGISTRY}/${PROJECT}/tring-service/ingestion:latest \
   --region=asia-southeast2 \
   --project=$PROJECT
@@ -572,6 +636,10 @@ If the client wants to adopt Terraform later: copy `infra/envs/prod/terraform.tf
 | sa-extract-play-console | bigquery.dataEditor | project |
 | sa-extract-play-console | bigquery.jobUser | project |
 | sa-extract-play-console | secretmanager.secretAccessor | secret: play-console-sa-key only |
+| sa-extract-app-store | bigquery.dataEditor | project |
+| sa-extract-app-store | bigquery.jobUser | project |
+| sa-extract-app-store | secretmanager.secretAccessor | secret: appstore-connect-key only |
+| sa-extract-app-store | secretmanager.secretAccessor | secret: appstore-connect-key-p8 only |
 | sa-dbt | bigquery.dataEditor | project |
 | sa-dbt | bigquery.jobUser | project |
 | sa-workflows | run.invoker | project |

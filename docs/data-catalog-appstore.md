@@ -1,290 +1,227 @@
-# Data Catalog: App Store Connect Raw Layer
+# Data Catalog: App Store Connect
 
-Status: **IN PROGRESS (2026-06-26)** - Auth working, code scaffold done, GCP infra not yet provisioned. Analytics instances pending (Apple generates 24-48h after first request created 2026-06-26).
+Status: **CODE DONE - GCP PENDING (2026-06-28)**. Ingestion + dbt models built and tested. GCP infra provisioning is the remaining step.
 
 ---
 
-## Overview
+## What is ingested
 
-| Data Type | BQ Table (planned) | Source API | Notes |
+| Data Type | Raw BQ Table | Source API | Status |
 |---|---|---|---|
-| App analytics (installs, sessions, downloads, engagement) | `appstore_raw.raw_analytics_*` | Analytics Reports API | Async 4-step flow, gzip TSV |
-| Customer reviews | `appstore_raw.raw_reviews` | App Store Connect v1 API | Synchronous JSON, paginated |
-| Sales reports | `appstore_raw.raw_sales` | Sales Reports API | Requires vendor number, gzip TSV |
-| Finance reports | `appstore_raw.raw_finance` | Finance Reports API | Requires vendor number, gzip TSV |
+| Customer reviews | `appstore_raw.raw_reviews` | App Store Connect v1 `/customerReviews` | Built |
+| App downloads | `appstore_raw.raw_app_downloads` | Analytics Reports API (App Downloads Standard) | Built |
+| Installs / deletions | `appstore_raw.raw_app_installs_deletions` | Analytics Reports API (App Store Installation and Deletion Standard) | Built |
+| App sessions | `appstore_raw.raw_app_sessions` | Analytics Reports API (App Sessions Standard) | Built |
+| Discovery / engagement | `appstore_raw.raw_app_discovery_engagement` | Analytics Reports API (App Store Discovery and Engagement Standard) | Built |
+| Install performance | `appstore_raw.raw_app_install_performance` | Analytics Reports API (App Install Performance) | Built |
+| Sales reports | `appstore_raw.raw_sales` | Sales Reports API | Deferred (vendor number needed) |
+| Finance reports | `appstore_raw.raw_finance` | Finance Reports API | Deferred (vendor number needed) |
 
 ---
 
-## API Details
+## API Overview
 
 | Field | Value |
 |---|---|
 | Base URL | `https://api.appstoreconnect.apple.com` |
-| Auth | ES256 JWT, signed with .p8 private key |
-| Key ID | `3JJKJT5QCK` (from `.env`, never hardcode) |
-| Issuer ID | `69a6de96-4e47-47e3-e053-5b8c7c11a4d1` (from `.env`) |
-| .p8 file | `AuthKey_3JJKJT5QCK.p8` at repo root (gitignored) |
-| Secret name | `appstore-connect-key` (stores .p8 content, created during GCP setup) |
+| Auth | ES256 JWT, signed with .p8 private key, 20-min expiry |
+| Key ID + Issuer ID | In Secret Manager as `appstore-connect-key` (format: `KEY_ID:ISSUER_ID`) |
+| .p8 private key content | In Secret Manager as `appstore-connect-key-p8` |
 | App ID | `1350501409` |
 | Bundle ID | `com.pegadaian.digital` |
-| JWT expiry | 20 minutes max (Apple limit) |
 
-### JWT generation
-
-```python
-import time, jwt
-from pathlib import Path
-
-KEY_ID = os.environ["APPSTORE_KEY_ID"]
-ISSUER_ID = os.environ["APPSTORE_ISSUER_ID"]
-p8 = Path(os.environ["APPSTORE_P8_PATH"]).read_text().strip()
-
-now = int(time.time())
-token = jwt.encode(
-    {"iss": ISSUER_ID, "iat": now, "exp": now + 1200, "aud": "appstoreconnect-v1"},
-    p8,
-    algorithm="ES256",
-    headers={"kid": KEY_ID},
-)
-```
+The JWT is generated and cached in `client.py`. It auto-refreshes 60 seconds before the 20-minute Apple-imposed expiry. No manual token management needed.
 
 ---
 
-## Analytics Reports API (no vendor number needed)
+## Analytics Reports API: how the async flow works
 
-> **Important:** This API is async, NOT a simple GET. You POST a request, Apple generates report files on their side (24-48h for first generation), then you download gzip TSV files. After the first generation, ONGOING requests produce new daily instances automatically.
+The analytics API is not a simple GET. It is a 4-step async process:
 
-### Step 1 - Create report request
+1. **POST request** (once, ever): create an ONGOING analytics report request for the app. Returns a `request_id`. Apple generates 156 report types for this request automatically each day.
+2. **GET reports** (by request ID): list all 156 reports. The pipeline matches by report name to get the 5 relevant `report_id` values.
+3. **GET instances** (by report ID): list available daily data files. Each instance is one day of data Apple has processed.
+4. **GET segments** (by instance ID): get pre-signed S3 download URLs. Each URL expires roughly 5 minutes after the GET call.
+5. **Download** (via unsigned GET): download the pre-signed URL immediately. Response is gzip-compressed TSV. Decompress with `gzip.open()`.
 
-**1a. ONGOING (daily pipeline — POST sekali, reuse selamanya)**
+**Critical design note:** The S3 signed URL expires about 5 minutes after the GET-segments call. The pipeline fetches and downloads each segment immediately within the same loop iteration. Do not batch URLs and download later.
 
-```
-POST /v1/analyticsReportRequests
-Body: {
-  "data": {
-    "type": "analyticsReportRequests",
-    "attributes": {"accessType": "ONGOING"},
-    "relationships": {"app": {"data": {"type": "apps", "id": "1350501409"}}}
-  }
-}
-```
+**Active ONGOING request ID:** `77203237-b1c3-40ed-bccf-ce4345c7d5ab` (created 2026-06-26). Override via `APPSTORE_ANALYTICS_REQUEST_ID` env var if the request is ever recreated.
 
-Returns `request_id`. Reuse setiap hari — Apple auto-generate instance baru tiap hari.
-
-**Active ONGOING request (created 2026-06-26):** `77203237-b1c3-40ed-bccf-ce4345c7d5ab`
-
-**1b. ONE_TIME_SNAPSHOT (backfill historis 2024-2025 — POST sekali, tunggu 24-48h)**
-
-```
-POST /v1/analyticsReportRequests
-Body: {
-  "data": {
-    "type": "analyticsReportRequests",
-    "attributes": {"accessType": "ONE_TIME_SNAPSHOT"},
-    "relationships": {"app": {"data": {"type": "apps", "id": "1350501409"}}}
-  }
-}
-```
-
-Apple generate semua data historis yang tersedia (~1-2 tahun ke belakang) dalam satu batch.
-Batas: **1 snapshot per bulan per app**. Instance tersedia 35 hari setelah dibuat.
-
-```bash
-# Jalankan snapshot via test script:
-cd tring-data-pipeline
-uv run --with PyJWT --with cryptography --with requests python3 ../test-appstore/test_appstore_endpoints.py --snapshot
-```
-
-### Step 2 - List available reports
-
-```
-GET /v1/analyticsReportRequests/{request_id}/reports?limit=200
-```
-
-Returns 156 report types. Dashboard-relevant categories:
-
-| Category | Count | Key reports for dashboard |
-|---|---|---|
-| `APP_USAGE` | 15 | App Store Installation and Deletion Standard, App Sessions Standard |
-| `COMMERCE` | 10 | App Downloads Standard, App Store Purchases Standard |
-| `APP_STORE_ENGAGEMENT` | 5 | App Store Discovery and Engagement Standard |
-| `PERFORMANCE` | 23 | App Install Performance |
-| `FRAMEWORK_USAGE` | 103 | Not needed for dashboard |
-
-Each report has a stable `report_id` per request (format: `r{N}-{request_id}`).
-
-### Step 3 - Get instances (check daily)
-
-```
-GET /v1/analyticsReports/{report_id}/instances?limit=10
-```
-
-Returns available data files. Each instance has:
-- `granularity`: `DAILY` or `MONTHLY`
-- `processingDate`: when Apple generated the file
-- `size`: file size in bytes
-
-Empty = Apple still generating (check again next day). Once populated, new instances appear daily for ONGOING requests.
-
-### Step 4 - Get download segments
-
-```
-GET /v1/analyticsReportInstances/{instance_id}/segments
-```
-
-Returns download URLs (pre-signed S3-style, time-limited). Each segment has:
-- `url`: download URL
-- `checksum`: MD5 for integrity check
-- `sizeInBytes`
-
-### Step 5 - Download file
-
-```
-GET {url}  (no auth header needed - URL is pre-signed)
-```
-
-Response is gzip-compressed TSV. Decompress with `gzip.open()`.
-
-### Dashboard-relevant report IDs (request 77203237-...)
-
-156 reports total available. Pipeline uses only 5. IDs are stable per request_id (confirmed 2026-06-26):
-
-| Report Name | Report ID | Category |
-|---|---|---|
-| App Store Installation and Deletion Standard | `r6-77203237-b1c3-40ed-bccf-ce4345c7d5ab` | APP_USAGE |
-| App Sessions Standard | `r8-77203237-b1c3-40ed-bccf-ce4345c7d5ab` | APP_USAGE |
-| App Downloads Standard | `r3-77203237-b1c3-40ed-bccf-ce4345c7d5ab` | COMMERCE |
-| App Store Discovery and Engagement Standard | `r14-77203237-b1c3-40ed-bccf-ce4345c7d5ab` | APP_STORE_ENGAGEMENT |
-| App Install Performance | `r5-77203237-b1c3-40ed-bccf-ce4345c7d5ab` | PERFORMANCE |
-
-Remaining 151 reports = `FRAMEWORK_USAGE` (ARKit, Bluetooth, Metal, Widget usage, etc.) — not needed for dashboard, ignored by pipeline.
+**Analytics download is stateless.** All available instances are downloaded on each run. dbt staging deduplicates by natural key. No state table needed, because the files are small (3-130 KB each).
 
 ---
 
-## Customer Reviews API (synchronous, no vendor number)
+## Reviews API: how it works
 
 - **Endpoint:** `GET /v1/apps/1350501409/customerReviews`
-- **Method:** GET, paginated via cursor
-- **Verified live (2026-06-26):** 200+ reviews returned, data current
-
-| Parameter | Value |
-|---|---|
-| `limit` | max 200 per page |
-| `sort` | `-createdDate` (newest first) |
-| `filter[rating]` | optional, e.g. `1,2` for low-star filter |
-
-### Response fields
-
-| Field | Type | Description |
-|---|---|---|
-| `id` | STRING | Unique review ID |
-| `attributes.rating` | INTEGER (1-5) | Star rating |
-| `attributes.title` | STRING | Review title |
-| `attributes.body` | STRING | Review text |
-| `attributes.reviewerNickname` | STRING | Reviewer display name |
-| `attributes.createdDate` | ISO8601 | Review creation date |
-| `attributes.territory` | STRING | 3-letter country code (e.g. `IDN`) |
-
-Pagination: follow `links.next` until absent.
+- **Pagination:** follow `links.next` until absent (cursor-based)
+- **Incremental:** extractor pulls reviews with `createdDate >= date_from`. Apple returns reviews newest-first. Pagination stops when the next page's oldest review is older than `date_from`.
+- **All-time available:** Apple keeps all reviews since app launch (March 2018). Current count: ~11,488+ reviews.
 
 ---
 
-## Sales Reports API (requires vendor number)
+## Raw table schemas
 
-- **Endpoint:** `GET /v1/salesReports`
-- **Auth:** same JWT
-- **Response:** gzip TSV (`Accept: application/a-gzip`)
-- **Status (2026-06-26):** HTTP 400 - `APPSTORE_VENDOR_NUMBER` not yet obtained
-
-**Required parameters:**
-
-| Parameter | Value |
-|---|---|
-| `filter[reportType]` | `SALES` or `SUBSCRIPTION` |
-| `filter[reportSubType]` | `SUMMARY` |
-| `filter[frequency]` | `DAILY` or `WEEKLY` |
-| `filter[vendorNumber]` | vendor number (find: App Store Connect > Agreements, Tax, and Banking) |
-| `filter[reportDate]` | `YYYY-MM-DD` for daily, `YYYY-MM-DD` (Sunday) for weekly |
-
----
-
-## Finance Reports API (requires vendor number)
-
-- **Endpoint:** `GET /v1/financeReports`
-- **Response:** gzip TSV
-- **Status (2026-06-26):** HTTP 400 - vendor number not yet obtained
-
-**Required parameters:**
-
-| Parameter | Value |
-|---|---|
-| `filter[reportType]` | `FINANCE_DETAIL` |
-| `filter[vendorNumber]` | vendor number |
-| `filter[regionCode]` | `ID` for Indonesia (or omit for all regions) |
-| `filter[reportDate]` | `YYYY-MM` (monthly) |
-
----
-
-## Metadata Columns (all tables, planned)
-
-Same 7-column standard as other sources:
+### `appstore_raw.raw_reviews`
 
 | Column | Type | Description |
 |---|---|---|
+| `review_id` | STRING | Apple's unique review identifier |
+| `rating` | STRING | Star rating as string (1-5) |
+| `title` | STRING | Review title |
+| `body` | STRING | Review text |
+| `reviewer_nickname` | STRING | Display name |
+| `created_date` | STRING | ISO8601 creation date |
+| `territory` | STRING | 3-letter country code (e.g. `IDN`) |
 | `_ingested_at` | TIMESTAMP | When the row was loaded into BigQuery |
 | `_source` | STRING | Always `app_store` |
-| `_run_id` | STRING | UUID identifying this extract run |
+| `_run_id` | STRING | UUID for this extract run |
 | `_extract_from` | DATE | date_from passed to the extract job |
 | `_extract_to` | DATE | date_to passed to the extract job |
-| `_app_id` | STRING | App Store app ID (`1350501409`) |
+| `_app_id` | STRING | Always `1350501409` |
 | `_platform` | STRING | Always `ios` |
 
+### `appstore_raw.raw_app_downloads`
+
+Columns come from the TSV header (snake-cased). Common columns:
+
+| Column | Type | Description |
+|---|---|---|
+| `date` | STRING | Report date (YYYY-MM-DD) |
+| `download_type` | STRING | e.g. First Time, Redownload |
+| `app_version` | STRING | App version string |
+| `device` | STRING | Device family |
+| `source_type` | STRING | Traffic source |
+| `page_type` | STRING | Store page type |
+| `territory` | STRING | 2-letter country code |
+| `counts` | STRING | Download count (cast to INT64 in staging) |
+| `_ingested_at` | TIMESTAMP | Standard metadata |
+| `_source` | STRING | Always `app_store` |
+
+### `appstore_raw.raw_app_installs_deletions`
+
+| Column | Type | Description |
+|---|---|---|
+| `date` | STRING | Report date |
+| `event` | STRING | Install or Delete |
+| `download_type` | STRING | First Time, Redownload |
+| `app_version` | STRING | App version |
+| `device` | STRING | Device family |
+| `source_type` | STRING | Traffic source |
+| `territory` | STRING | Country code |
+| `counts` | STRING | Event count |
+| `unique_devices` | STRING | Distinct devices |
+| `_ingested_at` | TIMESTAMP | Standard metadata |
+
+### `appstore_raw.raw_app_sessions`
+
+| Column | Type | Description |
+|---|---|---|
+| `date` | STRING | Report date |
+| `app_version` | STRING | App version |
+| `device` | STRING | Device family |
+| `source_type` | STRING | Traffic source |
+| `territory` | STRING | Country code |
+| `sessions` | STRING | Session count |
+| `total_session_duration` | STRING | Total seconds |
+| `unique_devices` | STRING | Distinct devices |
+| `_ingested_at` | TIMESTAMP | Standard metadata |
+
+### `appstore_raw.raw_app_discovery_engagement`
+
+| Column | Type | Description |
+|---|---|---|
+| `date` | STRING | Report date |
+| `event` | STRING | Impression, Page view, or Tap |
+| `page_type` | STRING | Store page type |
+| `source_type` | STRING | Traffic source |
+| `engagement_type` | STRING | Engagement category |
+| `device` | STRING | Device family |
+| `territory` | STRING | Country code |
+| `counts` | STRING | Event count |
+| `unique_counts` | STRING | Distinct user count |
+| `_ingested_at` | TIMESTAMP | Standard metadata |
+
+### `appstore_raw.raw_app_install_performance`
+
+| Column | Type | Description |
+|---|---|---|
+| `date` | STRING | Report date |
+| `download_type` | STRING | First Time, Redownload |
+| `install_status` | STRING | e.g. Succeeded |
+| `install_package_type` | STRING | On-Demand or App Clip |
+| `device` | STRING | Device family |
+| `territory` | STRING | Country code |
+| `counts` | STRING | Install count |
+| `avg_install_duration` | STRING | Average seconds to install |
+| `_ingested_at` | TIMESTAMP | Standard metadata |
+
+> All raw columns except `_ingested_at` and other `_` prefixed metadata columns are STRING. Casting to correct types happens in dbt staging models.
+
 ---
 
-## GCP Infra (NOT YET PROVISIONED - 2026-06-26)
+## dbt Models
 
-Provision after analytics instances confirmed and vendor number obtained. Commands in `docs/runbook.md §17`.
+### Staging (`appstore_staging` dataset)
 
-| Resource | Status |
-|---|---|
-| SA `sa-extract-app-store` | PENDING |
-| IAM: bigquery.dataEditor + jobUser | PENDING |
-| Secret `appstore-connect-key` (.p8 content) | PENDING |
-| IAM: secretmanager.secretAccessor | PENDING |
-| BQ datasets: appstore_raw, appstore_staging, appstore_mart | PENDING |
-| Cloud Run Job: extract-app-store | PENDING |
+| Model | Source table | Dedup key | Notes |
+|---|---|---|---|
+| `stg_appstore_reviews` | `raw_reviews` | `review_id` | Casts `created_date` to TIMESTAMP; derives `review_date` (DATE) |
+| `stg_appstore_app_downloads` | `raw_app_downloads` | date + download_type + app_version + device + source_type + page_type + territory | Casts `counts` to INT64 |
+| `stg_appstore_app_installs_deletions` | `raw_app_installs_deletions` | date + event + download_type + app_version + device + source_type + territory | Casts `counts`, `unique_devices` to INT64 |
+| `stg_appstore_app_sessions` | `raw_app_sessions` | date + app_version + device + source_type + territory | Casts `sessions`, `total_session_duration`, `unique_devices` to INT64 |
+| `stg_appstore_app_discovery_engagement` | `raw_app_discovery_engagement` | date + event + page_type + source_type + engagement_type + device + territory | Casts `counts`, `unique_counts` to INT64 |
+| `stg_appstore_app_install_performance` | `raw_app_install_performance` | date + download_type + install_status + install_package_type + device + territory | Casts `counts` to INT64; `avg_install_duration` to FLOAT64 |
 
----
+All staging models deduplicate using `qualify row_number() over (partition by <dedup key> order by _ingested_at desc) = 1`.
 
-## Ingestion Code Status
+### Mart (`appstore_mart` dataset)
 
-Reviews ingestion: **IMPLEMENTED** at `ingestion/src/tring_ingest/sources/app_store/` (2026-06-26).
+| Model | Sources | Partition | Key metrics |
+|---|---|---|---|
+| `mart_appstore_acquisition` | stg downloads + stg discovery engagement | DATE(`date`) | app_units (first_time + redownloads), impressions, page_views, conversion_rate |
+| `mart_appstore_engagement` | stg installs_deletions + stg sessions | DATE(`date`) | installs, deletions, sessions, avg_session_duration, sessions_per_device |
+| `mart_appstore_reviews` | stg reviews | DATE(`review_date`) | All review fields + is_negative_review (rating <= 2), clustered by rating |
 
-- `client.py` — ES256 JWT auth with token caching (auto-refresh 60s before expiry)
-- `extract.py` — incremental reviews pull: fetches reviews with `createdDate >= date_from`, stops pagination when date threshold crossed (Apple returns newest-first)
-- `cli.py` — `app_store` source wired, runs via `python -m tring_ingest --source app_store --from YYYY-MM-DD --to YYYY-MM-DD`
-- `config.py` — `APPSTORE_SECRET_NAME`, `APPSTORE_APP_ID`, `BQ_DATASET_RAW_APPSTORE` added
+`conversion_rate = safe_divide(first_time_downloads, nullif(impressions, 0))`
 
-**Reviews backfill:** run with `--from 2018-01-01` to get all 11,488 reviews (Tring! launched Mar 2018). Daily runs use `--from yesterday`.
+`avg_session_duration = safe_divide(total_session_duration, nullif(sessions, 0))`
 
-**Analytics (installs/sessions/downloads/engagement) ingestion: NOT YET IMPLEMENTED.** Still needs async 4-step flow:
-1. On first run: POST request (accessType=ONGOING), store request_id
-2. On each run: GET instances for each target report, filter by processingDate not yet ingested
-3. GET segments for each new instance
-4. Download + decompress gzip TSV
-5. Load to BQ raw table
-
-Sales/Finance: synchronous GET, needs vendor number first.
+`sessions_per_device = safe_divide(sessions, nullif(unique_devices, 0))`
 
 ---
 
 ## Known Behaviors and Limitations
 
-- **Analytics API is async:** POST request → Apple generates files → GET instances. Instances = 0 for 24-48h after first request. After that, new daily instances appear automatically for ONGOING requests.
-- **Reviews incremental, not full:** extractor pulls reviews with `createdDate >= date_from`. Staging deduplicates by `review_id`. Safe to re-run.
-- **Reviews all-time available:** Apple returns all reviews since app launch (Mar 2018). 11,488 total as of 2026-06-26. Run with `--from 2018-01-01` for full backfill.
-- **Vendor number required for sales/finance:** Find in App Store Connect > Agreements, Tax, and Banking > Vendor Number.
-- **JWT auto-refresh in client.py:** token cached, refreshed 60s before 20-min expiry. No manual intervention needed.
-- **Analytics report files are large:** Each gzip TSV can be several MB. Use chunked BQ loading (same pattern as AppsFlyer `in_app_events`).
-- **ONE_TIME_SNAPSHOT** untuk backfill analytics historis (2024-2025): POST sekali → Apple generate semua data historis → download. Batas 1x/bulan. Instance tersedia 35 hari. Kuota Juni sudah terpakai — lakukan Juli 2026.
-- **ONGOING vs ONE_TIME_SNAPSHOT:** pipeline daily pakai ONGOING (sekali POST, reuse selamanya). Backfill analytics pakai ONE_TIME_SNAPSHOT.
+- **Analytics API is async:** Apple generates daily report files. New ONGOING instances appear 2-3 days after the event date (data lags). dbt freshness thresholds use warn 49h, error 73h to account for this.
+- **Reviews are incremental:** `--from` controls the date threshold. Reviews are deduplicated in staging by `review_id`. Safe to re-run.
+- **All reviews available:** Tring! launched March 2018. Run `--from 2018-01-01` for full backfill. Current count 11,488+.
+- **Analytics download is stateless:** No state table. All available instances downloaded every run. dbt staging deduplicates. Small files (3-130 KB), so this is fast.
+- **ONGOING request ID:** `77203237-b1c3-40ed-bccf-ce4345c7d5ab`. If this request is ever deleted and recreated, update `APPSTORE_ANALYTICS_REQUEST_ID` env var on the Cloud Run Job.
+- **156 reports total, 5 used:** The other 151 are `FRAMEWORK_USAGE` category (ARKit, Metal, Bluetooth, etc.) not relevant to the product dashboard.
+- **ONE_TIME_SNAPSHOT backfill:** Apple allows 1 snapshot per month per app. June 2026 quota used. Run in July 2026 to load historical analytics (2024-2025). See runbook.md section 17 for commands.
+- **Sales/Finance:** Deferred. Requires vendor number from App Store Connect > Agreements, Tax, and Banking.
+- **JWT auto-refresh:** `client.py` caches the token and refreshes 60 seconds before the 20-minute expiry. No manual intervention needed.
+- **TSV column names with dashes:** Apple TSV headers like `Pre-Order` contain dashes. `endpoints.py _snake()` converts these to underscores (`pre_order`). Raw BQ data ingested before 2026-06-28 has the old column name `pre-order`; `stg_appstore_app_downloads` uses `coalesce(pre_order, \`pre-order\`)` to handle both.
+- **New columns from Apple are automatically dropped at ingest:** `bq_loader.py` fetches the existing BQ table schema before loading and filters out any columns not already in the table. Pipeline won't fail when Apple adds new TSV fields — they're silently ignored with a warning log. To capture a new column, update BQ schema + staging model + rebuild dbt. See runbook.md §11.
+
+---
+
+## GCP Resources
+
+| Resource | Description |
+|---|---|
+| SA `sa-extract-app-store` | Runtime identity for the extract job |
+| IAM `roles/bigquery.dataEditor` | Write to appstore_raw dataset |
+| IAM `roles/bigquery.jobUser` | Run BQ load jobs |
+| IAM `roles/secretmanager.secretAccessor` on `appstore-connect-key` | Read KEY_ID + ISSUER_ID |
+| IAM `roles/secretmanager.secretAccessor` on `appstore-connect-key-p8` | Read .p8 private key content |
+| Secret `appstore-connect-key` | Format: `KEY_ID:ISSUER_ID` |
+| Secret `appstore-connect-key-p8` | Raw .p8 PEM content |
+| BQ dataset `appstore_raw` | Raw layer, `asia-southeast2` |
+| BQ dataset `appstore_staging` | Staging views, `asia-southeast2` |
+| BQ dataset `appstore_mart` | Mart tables, `asia-southeast2` |
+| Cloud Run Job `extract-app-store` | Runs `python -m tring_ingest --source app_store` |
+
+Provision commands are in `docs/gcp-setup.md` (sections 2, 3, 4, 6, 8). Shortcut: `make create-app-store PROJECT=...`
