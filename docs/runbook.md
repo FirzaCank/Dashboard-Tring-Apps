@@ -206,6 +206,22 @@ gcloud workflows run pipeline \
 
 Use this when sources need different date ranges, or you want to avoid triggering AppsFlyer (rate limit concern).
 
+Via Makefile (shorter):
+```bash
+# MoEngage
+make run-moengage PROJECT=dashboard-tring FROM=2026-01-01 TO=2026-01-31
+
+# Play Console
+make run-play-console PROJECT=dashboard-tring FROM=2026-01-01 TO=2026-01-31
+
+# App Store
+make run-app-store PROJECT=dashboard-tring FROM=2026-01-01 TO=2026-01-31
+
+# AppsFlyer (max 1 run/day due to in_app_events rate limit)
+make run-appsflyer PROJECT=dashboard-tring FROM=2026-05-01 TO=2026-05-31
+```
+
+Via gcloud (equivalent):
 ```bash
 # MoEngage - no rate limit, safe to run per month
 gcloud run jobs execute extract-moengage \
@@ -231,6 +247,8 @@ gcloud run jobs execute extract-appsflyer \
   --project=$PROJECT \
   --update-env-vars="DATE_FROM=2026-05-01,DATE_TO=2026-05-31"
 ```
+
+> The Makefile targets use `--wait` (blocks until the job finishes). The gcloud commands above return immediately; check status separately.
 
 Check execution status:
 ```bash
