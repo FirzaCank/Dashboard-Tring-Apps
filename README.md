@@ -1,8 +1,7 @@
 # Dashboard Monitoring & AI Insight - Data Pipeline
 
 Multi-source mobile app analytics into BigQuery for Looker Studio.
-Live sources: AppsFlyer, MoEngage, Google Play Console. App Store Connect is
-scaffolded for later (not in scope yet).
+Live sources: AppsFlyer, MoEngage, Google Play Console, App Store Connect.
 
 > **New here?** Read **[docs/index.md](docs/index.md)** first - reading order and
 > a glossary of every term. Short path: `index.md` -> `gcp-setup.md` ->
@@ -16,6 +15,7 @@ Cloud Scheduler (2x daily)
        -> [parallel] extract-appsflyer      (4 endpoints x 2 platforms = 8 pulls)
        -> [parallel] extract-moengage       (campaign search + stats)
        -> [parallel] extract-play-console   (6 metric sets + reviews)
+       -> [parallel] extract-app-store      (5 analytics reports + reviews)
        -> dbt transform   (after all extracts succeed)
   -> BigQuery (raw -> staging -> mart)
   -> Looker Studio
@@ -26,7 +26,7 @@ Cloud Scheduler (2x daily)
 | AppsFlyer | DONE | 12/12 | DONE | DONE | DONE |
 | MoEngage | DONE | 12/12 | DONE | DONE | DONE |
 | Play Console | DONE | 16/16 | DONE | DONE | DONE |
-| App Store Connect | scaffold only (future) | - | - | - | - |
+| App Store Connect | DONE | 11/11 | DONE | DONE | DONE |
 
 Region: `asia-southeast2` (Jakarta). Envs: `dev` (consultant GCP), `prod`
 (client GCP, deployed via GitLab + VPN).
@@ -93,7 +93,7 @@ The workflow auto-computes yesterday when no dates are passed. See
 | [docs/runbook.md](docs/runbook.md) | Ops: triggers, backfill, rotation, failures, adding a source |
 | [docs/adding-endpoints.md](docs/adding-endpoints.md) | Add an endpoint to an existing source |
 | [docs/testing.md](docs/testing.md) | Local + CI verification |
-| Data catalogs | Per-source reference: [appsflyer](docs/data-catalog-appsflyer.md), [moengage](docs/data-catalog-moengage.md), [play-console](docs/data-catalog-play-console.md) |
+| Data catalogs | Per-source reference: [appsflyer](docs/data-catalog-appsflyer.md), [moengage](docs/data-catalog-moengage.md), [play-console](docs/data-catalog-play-console.md), [app-store](docs/data-catalog-appstore.md) |
 
 ## Secrets
 
